@@ -48,16 +48,16 @@ CreateMyCard/
 
 ```bash
 # 基本生成
-python test/batch_generate.py --queries test/queries.jsonl --skill-dir skills/harmony-card-generation
+python test/batch_generate.py -i test/queries.jsonl --skill-dir skills/harmony-card-generation
 
 # 生成 + 校验
-python test/batch_generate.py --queries test/queries.jsonl --skill-dir skills/harmony-card-generation --validate
+python test/batch_generate.py -i test/queries.jsonl --skill-dir skills/harmony-card-generation --validate
 
 # 生成 + 校验 + 失败重试
-python test/batch_generate.py --queries test/queries.jsonl --skill-dir skills/harmony-card-generation --validate --max-retry 2
+python test/batch_generate.py -i test/queries.jsonl --skill-dir skills/harmony-card-generation --validate --max-retry 2
 
 # 输出每条查询的独立文件
-python test/batch_generate.py --queries test/queries.jsonl --skill-dir skills/harmony-card-generation --write-items
+python test/batch_generate.py -i test/queries.jsonl --skill-dir skills/harmony-card-generation --write-items
 ```
 
 ### 独立校验
