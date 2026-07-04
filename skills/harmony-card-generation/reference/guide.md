@@ -6,7 +6,7 @@
 
 ```jsonl
 {"version":"v0.9","createSurface":{"surfaceId":"sample-card","catalogId":"ohos.a2ui.extended.catalog"}}
-{"version":"v0.9","updateComponents":{"surfaceId":"sample-card","components":[{"id":"root","component":"Column","children":["title"],"styles":{"width":160,"height":160,"borderRadius":22,"clip":true}},{"id":"title","component":"Text","content":"{{ $__dataModel.title }}","styles":{"fontSize":16,"fontWeight":700}}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"sample-card","components":[{"id":"root","component":"Column","children":["title"],"styles":{"width":160,"height":160,"borderRadius":22,"clip":true}},{"id":"title","component":"Text","content":{"path":"/title"},"styles":{"fontSize":16,"fontWeight":700}}]}}
 {"version":"v0.9","updateDataModel":{"surfaceId":"sample-card","path":"/","value":{"title":"Sample"}}}
 ```
 
@@ -39,7 +39,7 @@
 
 ```json
 {"id":"root","component":"Column","children":["title","cta"]}
-{"id":"title","component":"Text","content":"{{ $__dataModel.title }}"}
+{"id":"title","component":"Text","content":{"path":"/title"}}
 ```
 
 不要内联 child component object：
@@ -73,27 +73,27 @@
 
 ## 数据模型规则
 
-- 用表达式绑定动态可见数据：`"{{ $__dataModel.meeting.time }}"`。
+- 动态可见数据优先用原生 path 绑定：`{"path":"/meeting/time"}`。
 - 只有结构性装饰值才保持字面量，例如空 spacer 文本。
-- 表达式引用的数据应存在于 `updateDataModel.value`。
+- 所有可见动态绑定引用的数据应存在于 `updateDataModel.value`。
 - `updateDataModel.path` 使用 `/` JSON Pointer。
-- 宿主动作参数尽量绑定到数据：
+- 动作参数尽量绑定到数据；点击、拨号、打开应用或详情页优先使用 event capability 中已声明的 `functionCall`：
 
 ```json
-"onClick":[{"call":"openTrainingPlan","args":{"planId":"{{ $__dataModel.plan.id }}"}}]
+"onClick":[{"call":"openTrainingPlan","args":{"planId":{"path":"/plan/id"}}}]
 ```
 
-## 表达式规则
+## 表达式规则（禁用）
 
-表达式只在 Form 扩展组件中可用，并且只用于 `updateComponents` 的 value 位置：
+本 skill 生成结果不要使用 `{{ ... }}` 表达式。动态值只使用原生 path 绑定、`formatString`，或 `updateDataModel` 中预先计算好的展示字段：
 
 ```json
-{"content":"{{ '剩余 ' + $__dataModel.countdown.days + ' 天' }}"}
+{"content":{"path":"/countdown/dayLabel"}}
 ```
 
-桌面卡片中谨慎使用表达式。一句话生成时，优先在 `updateDataModel` 中预计算展示字符串，因为这样更容易校验和本地化。
+一句话生成时，优先在 `updateDataModel` 中预计算展示字符串，因为这样更容易评审和本地化。
 
-不要在 `id`、`component`、对象 key、event `call` 或 event `as` 中使用表达式。不要在一个字符串中写多段表达式，例如 `"{{ a }} {{ b }}"`。
+不要在组件属性、`id`、`component`、对象 key、event `call`、event `as` 或 event `condition` 中使用表达式。遇到原生绑定无法表达的逻辑时，先预计算展示字段；仍无法表达则简化设计。
 
 ## 交互规则
 
@@ -102,14 +102,16 @@
 - 当整个视觉区域可点击时，在 `Stack`、`Row` 或 `Column` 上使用 `onClick`。
 - 当控件语义上应是带直接标签文本的按钮时，使用 `Button`，并把点击行为写在 `Button.onClick`。
 - EventHandler 条目需要 `call`；`args`、`as` 和 `condition` 可选。
-- `call` 只能引用宿主 catalog 已声明的自定义函数，或明确声明为宿主假设。
+- `call` 优先引用 `reference/event-capability/` 中已声明的 `functionCall`；未声明时只能引用宿主 catalog 已声明的自定义函数，或明确声明为宿主假设。
 - 不要使用 `Button.action` 或预定义扩展函数。
 
 ## 媒体规则
 
-- `Image.src` 和 `styles.backgroundImage` 只使用本地/资源路径。
-- 不要使用网络图片 URL、占位图片 URL、SVG 或 base64 SVG。
-- 如果没有真实本地资源，用 `linearGradient`、半透明块、文本字形、`Progress` 和 `Divider` 创造视觉丰富度。
+- 需要图标、图片或视觉锚点时，先按 [`asset-library.md`](asset-library.md) 语义匹配已声明素材；用户明确指定的本地/资源路径也可使用。
+- `Image.src` 和 `styles.backgroundImage` 只使用用户提供或素材库声明的本地/资源路径。
+- 静态素材可直接写 `Image.src`；如果素材由 DataModel 决定，绑定到 `/asset/...` 并把该值初始化为素材库中声明过的 `src`。
+- 不要使用网络图片 URL、占位图片 URL、SVG、base64 SVG 或未声明资源路径。
+- 如果没有语义匹配的真实资源，用 `linearGradient`、半透明块、文本字形、`Progress` 和 `Divider` 创造视觉丰富度。
 
 ## 输出质量清单
 
@@ -122,8 +124,8 @@
 - [ ] 只使用 Form 支持组件。
 - [ ] 正确使用 `Text.content`、`Image.src`、`Button.label`。
 - [ ] Root 适配 `160 x 160vp` 或横版 `320 x 160vp`。
-- [ ] 表达式引用的数据在 DataModel 中有对应字段。
+- [ ] 没有使用表达式，所有动态展示字段都能从 DataModel 推导。
 - [ ] 关键信息有明确完整显示宽度计划，不依赖 ellipsis/clip。
 - [ ] 动作有真实 `onClick` EventHandler。
-- [ ] 没有网络或占位媒体 URL。
+- [ ] 没有网络、占位媒体 URL 或未声明资源路径。
 - [ ] 结构由规则构造，不是复制模板。

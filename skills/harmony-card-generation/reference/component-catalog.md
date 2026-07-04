@@ -65,7 +65,7 @@ Form 支持 10 个扩展组件：
 文本展示。必需字段是 `content`。
 
 ```json
-{"id":"title","component":"Text","content":"{{ $__dataModel.title }}","styles":{"fontSize":16,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1,"textOverflow":"none"}}
+{"id":"title","component":"Text","content":{"path":"/title"},"styles":{"fontSize":16,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1,"textOverflow":"none"}}
 ```
 
 常用样式：
@@ -85,7 +85,7 @@ Form 支持 10 个扩展组件：
 图片展示。必需字段是 `src`。
 
 ```json
-{"id":"img","component":"Image","src":"{{ $__dataModel.asset.image }}","styles":{"width":"100%","height":"100%","objectFit":"cover"}}
+{"id":"img","component":"Image","src":{"path":"/asset/image"},"styles":{"width":"100%","height":"100%","objectFit":"cover"}}
 ```
 
 规则：
@@ -118,11 +118,11 @@ Form 支持 10 个扩展组件：
 进度条/进度环。
 
 ```json
-{"id":"progress","component":"Progress","value":"{{ $__dataModel.progress.value }}","total":"{{ $__dataModel.progress.total }}","styles":{"type":"ring","color":"#A77DFF","width":72,"height":72}}
+{"id":"progress","component":"Progress","value":{"path":"/progress/value"},"total":{"path":"/progress/total"},"styles":{"type":"ring","color":"#A77DFF","width":72,"height":72}}
 ```
 
-- `value`：数字或表达式
-- `total`：数字或表达式，必选
+- `value`：数字或 `{"path":"/..."}`
+- `total`：数字或 `{"path":"/..."}`，必选
 - `styles.type`：`linear|ring|eclipse|scaleRing|capsule`
 - `styles.color`：颜色字符串
 
@@ -131,11 +131,11 @@ Form 支持 10 个扩展组件：
 语义按钮。使用 `label` 和 `onClick`，不要使用 `Button.action`。
 
 ```json
-{"id":"btn","component":"Button","label":"{{ $__dataModel.action.label }}","onClick":[{"call":"openDetail","args":{"targetId":"{{ $__dataModel.action.targetId }}"}}]}
+{"id":"btn","component":"Button","label":{"path":"/action/label"},"onClick":[{"call":"openDetail","args":{"targetId":{"path":"/action/targetId"}}}]}
 ```
 
-- `label`：字符串或表达式
-- `enabled`：boolean 或表达式
+- `label`：字符串、`{"path":"/..."}` 或 `formatString`
+- `enabled`：boolean 或 `{"path":"/..."}`
 - `onClick`：EventHandler 数组
 - `styles.fontWeight`：数字或 `normal|regular|medium|bold|bolder`
 - CTA 文本是受保护内容，避免窄固定宽度和省略。
@@ -145,13 +145,13 @@ Form 支持 10 个扩展组件：
 多选框。服务卡片中谨慎使用，通常只在用户明确要求切换状态时使用。
 
 ```json
-{"id":"done","component":"Checkbox","label":"{{ $__dataModel.todo.label }}","select":"{{ $__dataModel.todo.done }}","onClick":[{"call":"toggleTodo","args":{"id":"{{ $__dataModel.todo.id }}"}}]}
+{"id":"done","component":"Checkbox","label":{"path":"/todo/label"},"select":{"path":"/todo/done"},"onClick":[{"call":"toggleTodo","args":{"id":{"path":"/todo/id"}}}]}
 ```
 
-- `label`：字符串或表达式
-- `value`：字符串或表达式
-- `group`：字符串或表达式
-- `select`：boolean 或表达式
+- `label`：字符串、`{"path":"/..."}` 或 `formatString`
+- `value`：字符串或 `{"path":"/..."}`
+- `group`：字符串或 `{"path":"/..."}`
+- `select`：boolean 或 `{"path":"/..."}`
 - `styles.selectedColor` / `styles.unSelectedColor`：颜色字符串
 - `styles.shape`：`circle|rounded_square`
 - `styles.mark`：`{ strokeColor, size, strokeWidth }`
