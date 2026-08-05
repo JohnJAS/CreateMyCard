@@ -90,6 +90,72 @@ def test_edit_requires_previous_content():
         build_messages(_task_spec("改成蓝色"), route="standard", mode="edit")
 
 
+def test_create_rejects_previous_content_even_when_empty():
+    with pytest.raises(PromptBuildError, match="create mode"):
+        build_messages(
+            _task_spec("新建"),
+            route="standard",
+            mode="create",
+            previous_content="",
+        )
+
+
+def test_repair_allows_non_empty_previous_content_as_edit_context():
+    messages = build_messages(
+        _task_spec("改成蓝色"),
+        route="standard",
+        mode="repair",
+        previous_content="old-genui",
+        invalid_source_dsl="invalid-dsl",
+        quality_errors=[{"stage": "validation", "code": "E001", "message": "bad root"}],
+    )
+
+    repair_payload = json.loads(messages[1]["content"])
+    original_payload = json.loads(repair_payload["originalUserContent"])
+    assert original_payload["mode"] == "edit"
+    assert original_payload["previousGenui"] == "old-genui"
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_format"),
+    [
+        ("design", "design-compact-dsl"),
+        ("terse", "terse-dsl-nested-2"),
+    ],
+)
+def test_design_routes_edit_include_source_format(route, expected_format):
+    messages = build_messages(
+        _task_spec("改成蓝色"),
+        route=route,
+        mode="edit",
+        previous_content="old-design-token",
+    )
+
+    payload = json.loads(messages[1]["content"])
+    assert payload["previousDesignToken"]["format"] == expected_format
+    assert payload["previousDesignToken"]["content"] == "old-design-token"
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_format"),
+    [
+        ("design", "design-compact-dsl"),
+        ("terse", "terse-dsl-nested-2"),
+    ],
+)
+def test_design_routes_repair_include_source_format(route, expected_format):
+    messages = build_messages(
+        _task_spec("天气卡片"),
+        route=route,
+        mode="repair",
+        invalid_source_dsl="invalid-design-token",
+        quality_errors=[{"stage": "validation", "code": "E001", "message": "bad root"}],
+    )
+
+    payload = json.loads(messages[1]["content"])
+    assert payload["dslFormat"] == expected_format
+
+
 def test_repair_requires_source_and_quality_errors():
     with pytest.raises(PromptBuildError, match="invalid source DSL"):
         build_messages(_task_spec(), route="standard", mode="repair")
@@ -194,3 +260,18 @@ def test_module_import_works_without_cloud_pythonpath():
 
     assert result.returncode == 0
     assert result.stdout.strip() == "build_messages"
+
+
+def test_cli_subprocess_preserves_utf8_for_stdin_and_stdout():
+    task_spec = _task_spec("生成一张天气卡片")
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.build_sft_prompt", "--route", "standard"],
+        cwd=PROJECT_ROOT,
+        input=(json.dumps(task_spec, ensure_ascii=False) + "\n").encode("utf-8"),
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    output = json.loads(result.stdout.decode("utf-8"))
+    assert output["messages"][1]["content"] == "生成一张天气卡片"

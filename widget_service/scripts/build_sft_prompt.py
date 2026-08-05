@@ -52,8 +52,13 @@ def build_messages(
     normalized_route = _normalize_choice(route, _ROUTES, "route")
     normalized_mode = _normalize_choice(mode, _MODES, "mode")
     task_spec = _validate_task_spec(task_spec_payload)
+    if normalized_mode == "create" and previous_content is not None:
+        raise PromptBuildError("create mode does not accept previous content")
     if normalized_mode == "edit" and not _has_content(previous_content):
         raise PromptBuildError("edit mode requires previous content")
+    if normalized_mode == "repair" and previous_content is not None:
+        if not _has_content(previous_content):
+            raise PromptBuildError("repair mode previous content must not be empty")
 
     initial_messages = _build_initial_messages(
         task_spec,
@@ -173,7 +178,30 @@ def _read_json_text(text: str, label: str) -> object:
 def _read_input(path: Path | None) -> object:
     if path is not None:
         return _read_json_text(_read_text(path, "input file"), "input file")
-    return _read_json_text(sys.stdin.read(), "stdin")
+    return _read_json_text(_read_stdin_text(), "stdin")
+
+
+def _read_stdin_text() -> str:
+    stdin_buffer = getattr(sys.stdin, "buffer", None)
+    if stdin_buffer is None:
+        return sys.stdin.read()
+    raw_input = stdin_buffer.read()
+    if not isinstance(raw_input, bytes):
+        raise PromptBuildError("stdin buffer must return bytes")
+    try:
+        return raw_input.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise PromptBuildError("stdin must be valid UTF-8") from exc
+
+
+def _write_stdout(serialized: str) -> None:
+    output = serialized + "\n"
+    stdout_buffer = getattr(sys.stdout, "buffer", None)
+    if stdout_buffer is None:
+        sys.stdout.write(output)
+        return
+    stdout_buffer.write(output.encode("utf-8"))
+    stdout_buffer.flush()
 
 
 def _read_optional_file(path: Path | None, label: str) -> str | None:
@@ -248,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
             if not assistant_content.strip():
                 raise PromptBuildError("assistant file is empty")
             messages.append({"role": "assistant", "content": assistant_content})
-        print(json.dumps({"messages": messages}, ensure_ascii=False, separators=(",", ":")))
+        serialized = json.dumps({"messages": messages}, ensure_ascii=False, separators=(",", ":"))
+        _write_stdout(serialized)
         return 0
     except PromptBuildError as exc:
         print(f"error: {exc}", file=sys.stderr)
