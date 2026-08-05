@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import io
 import json
+import os
+import subprocess
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -172,3 +174,23 @@ def test_cli_reports_malformed_json(capsys, monkeypatch):
     captured = capsys.readouterr()
     assert exit_code == 2
     assert "JSON" in captured.err
+
+
+def test_module_import_works_without_cloud_pythonpath():
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from scripts.build_sft_prompt import build_messages; print(build_messages.__name__)",
+        ],
+        cwd=PROJECT_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "build_messages"

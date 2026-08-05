@@ -6,21 +6,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Literal
 
-if __name__ == "__main__" and __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "cloud"))
+_CLOUD_ROOT = Path(__file__).resolve().parents[1] / "cloud"
+if str(_CLOUD_ROOT) not in sys.path:
+    sys.path.insert(0, str(_CLOUD_ROOT))
 
-from pydantic import ValidationError
-
-from models.generation import TaskSpec
-from services.prompt_builder import PromptBuilder
-from services.protocol_registry import (
-    DESIGN_COMPACT_PROFILE_ID,
-    TERSE_DSL_NESTED2_PROFILE_ID,
-    A2UIProtocolRegistry,
-)
+ValidationError = import_module("pydantic").ValidationError
+TaskSpec = import_module("models.generation").TaskSpec
+PromptBuilder = import_module("services.prompt_builder").PromptBuilder
+_protocol_registry = import_module("services.protocol_registry")
+DESIGN_COMPACT_PROFILE_ID = _protocol_registry.DESIGN_COMPACT_PROFILE_ID
+TERSE_DSL_NESTED2_PROFILE_ID = _protocol_registry.TERSE_DSL_NESTED2_PROFILE_ID
+A2UIProtocolRegistry = _protocol_registry.A2UIProtocolRegistry
 
 Route = Literal["standard", "design", "terse"]
 Mode = Literal["create", "edit", "repair"]
