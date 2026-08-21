@@ -96,6 +96,7 @@ from services.edit_request_normalizer import EditRequestNormalizer
 from services.generation_pipeline import (
     DslProcessingResult,
     DslProcessorKind,
+    GenerationRoutePolicy,
     QualityIssue,
     get_dsl_processor,
 )
@@ -105,6 +106,7 @@ from services.protocol_registry import A2UIProtocolRegistry
 from services.response_planner import ResponsePlanner
 from services.retry_controller import RetryController
 from services.task_spec_builder import TaskSpecBuilder
+from services.template_generation import route_legacy_python_terse_generation
 from services.terse_dsl_nested2_converter import (
     TerseDslNested2ConversionError,
     convert_terse_dsl_nested2_to_a2ui,
@@ -169,7 +171,7 @@ def test_terse_dsl_nested2_rejects_executable_or_unsupported_input(source):
 
 
 @pytest.mark.asyncio
-async def test_terse_dsl_nested2_generation_uses_local_prompt_and_converter(monkeypatch):
+async def test_legacy_terse_diagnostic_entry_uses_local_prompt_and_converter(monkeypatch):
     source = """
 Column("card",
   Text("静态天气", "title"),
@@ -223,8 +225,24 @@ Column("card",
         classmethod(read_nested2_protocol),
     )
 
-    response = await WidgetGenerationService().generate_widget_card_terse_dsl_nested2(
-        _model_failure_request()
+    service = WidgetGenerationService()
+    policy = GenerationRoutePolicy(
+        operation="generateWidgetCardTerseDslNested2",
+        protocol_profile_id="a2ui-form-rom6.0-v1",
+        backend="openai",
+        processor_kind=DslProcessorKind.TERSE_NESTED2,
+        source_format="terse-dsl-nested-2",
+        model_profile_id="terse-dsl-nested-2",
+        model_format="terse-dsl-nested-2",
+        design_profile_id="terse-dsl-nested-2",
+        supports_dynamic_capabilities=True,
+        validation_failure_blocking=True,
+        stores_design_token=True,
+    )
+    response = await route_legacy_python_terse_generation(
+        service,
+        _model_failure_request(),
+        policy,
     )
 
     assert response.status == GenerationStatus.SUCCESS
@@ -256,7 +274,19 @@ def test_terse_dsl_nested2_prompt_builder_uses_terse_system_prompt():
 
 
 @pytest.mark.asyncio
-async def test_terse_dsl_nested2_rejects_dynamic_requests():
+async def test_terse_dsl_nested2_supports_dynamic_requests(monkeypatch):
+    observed_policy = None
+    observed_try_template = False
+    expected_response = object()
+
+    async def capture_route(_request, policy, **kwargs):
+        nonlocal observed_policy, observed_try_template
+        observed_policy = policy
+        observed_try_template = kwargs.get("try_template", False)
+        return expected_response
+
+    service = WidgetGenerationService()
+    monkeypatch.setattr(service, "_generate_widget_card_with_policy", capture_route)
     dynamic_request = GenerateWidgetCardRequest(
         uid="test-user",
         prdVer=APP_VERSION,
@@ -272,14 +302,14 @@ async def test_terse_dsl_nested2_rejects_dynamic_requests():
             }
         ],
     )
-    service = WidgetGenerationService()
-
     dynamic_response = await service.generate_widget_card_terse_dsl_nested2(
         dynamic_request
     )
 
-    assert dynamic_response.status == GenerationStatus.UNSUPPORTED
-    assert dynamic_response.errorCode == "PROTOCOL_CAPABILITY_UNSUPPORTED"
+    assert dynamic_response is expected_response
+    assert observed_policy is not None
+    assert observed_policy.supports_dynamic_capabilities is True
+    assert observed_try_template is True
 
 
 def test_websocket_handler_runs_sync_service_in_threadpool():
@@ -3721,9 +3751,12 @@ async def test_generation_routes_accept_each_configured_model_backend(
     captured: dict[str, object] = {}
     sentinel = object()
 
-    async def capture_route(_request, policy):
+    async def capture_route(_request, policy, **kwargs):
         captured["model_backend"] = policy.backend
+        captured["processor_kind"] = policy.processor_kind
         captured["design_profile_id"] = policy.design_profile_id
+        captured["try_template"] = kwargs.get("try_template", False)
+        captured["need_fallback"] = kwargs.get("need_fallback", True)
         return sentinel
 
     monkeypatch.setattr(service, "_generate_widget_card_with_policy", capture_route)
@@ -3733,9 +3766,15 @@ async def test_generation_routes_accept_each_configured_model_backend(
     assert result is sentinel
     assert captured["model_backend"] == backend
     if generation_method == "generate_widget_card_compact_dsl":
+        assert captured["processor_kind"] == DslProcessorKind.DESIGN_COMPACT
         assert captured["design_profile_id"] == "design-compact-dsl"
+        assert captured["try_template"] is True
+        assert captured["need_fallback"] is True
     if generation_method == "generate_widget_card_terse_dsl_nested2":
-        assert captured["design_profile_id"] == "terse-dsl-nested-2"
+        assert captured["processor_kind"] == DslProcessorKind.DESIGN_COMPACT
+        assert captured["design_profile_id"] == "design-compact-dsl"
+        assert captured["try_template"] is True
+        assert captured["need_fallback"] is False
 
 
 @pytest.mark.parametrize(
@@ -3951,11 +3990,6 @@ _SOURCE_FORMAT_CASES = [
             encoding="utf-8"
         ),
         "design-compact-dsl",
-    ),
-    (
-        "generate_widget_card_terse_dsl_nested2",
-        'Column("card", Text("静态天气", "title"), Text("晴 26℃", "success"));',
-        "terse-dsl-nested-2",
     ),
 ]
 
@@ -4246,7 +4280,6 @@ async def test_unknown_validator_exception_does_not_trigger_model_repair(monkeyp
     ("generation_method", "processor_kind"),
     [
         ("generate_widget_card_compact_dsl", DslProcessorKind.DESIGN_COMPACT),
-        ("generate_widget_card_terse_dsl_nested2", DslProcessorKind.TERSE_NESTED2),
     ],
 )
 @pytest.mark.asyncio
@@ -4301,7 +4334,6 @@ async def test_source_format_warning_does_not_trigger_repair(
     "generation_method",
     [
         "generate_widget_card_compact_dsl",
-        "generate_widget_card_terse_dsl_nested2",
     ],
 )
 @pytest.mark.asyncio
@@ -4338,7 +4370,6 @@ async def test_conversion_failure_does_not_repair_when_switch_is_disabled(
     "generation_method",
     [
         "generate_widget_card_compact_dsl",
-        "generate_widget_card_terse_dsl_nested2",
     ],
 )
 @pytest.mark.asyncio
