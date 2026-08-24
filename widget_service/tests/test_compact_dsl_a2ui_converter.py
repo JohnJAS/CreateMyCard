@@ -8,12 +8,15 @@ import unittest
 from pathlib import Path
 
 from convert_compact_dsl_to_a2ui import main
+from services.card_validation import (
+    CompactDslValidationError,
+    validate_compact_dsl,
+)
 from services.compact_dsl_a2ui_converter import (
     CompactDslConversionError,
     convert_compact_dsl_to_a2ui,
     normalize_compact_dsl_design_tokens,
     repair_compact_dsl_binding_paths,
-    validate_compact_dsl_context,
 )
 
 
@@ -263,7 +266,7 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
             ["root", "action", "action_icon"],
         )
         self.assertEqual(rows[1][3], ["action_icon"])
-        validate_compact_dsl_context(
+        validate_compact_dsl(
             compact_dsl,
             task_spec={
                 "dataModelSchema": {},
@@ -1153,13 +1156,85 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
             )
 
     def test_validates_task_and_capability_context(self) -> None:
-        result = validate_compact_dsl_context(
+        result = validate_compact_dsl(
             self.compact_dsl,
             task_spec=self.task_spec,
             card_spec=self.card_spec,
         )
 
         self.assertEqual(result.warnings, ())
+
+    def test_rejects_expression_that_wraps_quoted_json_pointer(self) -> None:
+        compact_dsl = _serialize(
+            [
+                [
+                    "root",
+                    "Column",
+                    {"width": 160, "height": 160},
+                    ["temperature"],
+                ],
+                [
+                    "temperature",
+                    "Text",
+                    {
+                        "content": (
+                            "{{ '/data/weather/current/temperatureText' }}"
+                        )
+                    },
+                ],
+                ["/data/weather/current/temperatureText", "26℃"],
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            CompactDslValidationError,
+            "expression wraps quoted JSON Pointer",
+        ):
+            validate_compact_dsl(
+                compact_dsl,
+                task_spec={
+                    "dataModelSchema": {"data": {}},
+                    "assetCandidates": [],
+                    "eventCandidates": [],
+                },
+                card_spec={"dataBindings": []},
+            )
+
+    def test_rejects_compact_data_path_missing_from_task_spec(self) -> None:
+        compact_dsl = _serialize(
+            [
+                [
+                    "root",
+                    "Column",
+                    {"width": 160, "height": 160},
+                    ["temperature"],
+                ],
+                [
+                    "temperature",
+                    "Text",
+                    {
+                        "content": (
+                            "{{ ${/data/weather/current/temperatureText} }}"
+                        )
+                    },
+                ],
+                ["/data/weather/current/temperatureText", "26℃"],
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            CompactDslValidationError,
+            "path is not declared by TaskSpec.dataModelSchema",
+        ):
+            validate_compact_dsl(
+                compact_dsl,
+                task_spec={
+                    "dataModelSchema": {"data": {}},
+                    "assetCandidates": [],
+                    "eventCandidates": [],
+                },
+                card_spec={"dataBindings": []},
+            )
 
     def test_repairs_only_unique_missing_data_root(self) -> None:
         rows = [
@@ -1309,7 +1384,7 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
         self.assertEqual(repaired_rows[1][2]["content"], "68")
         self.assertEqual(repaired_rows[2][2]["value"], 68)
         self.assertEqual(len(repaired_rows), 3)
-        validate_compact_dsl_context(
+        validate_compact_dsl(
             repaired,
             task_spec={
                 "dataModelSchema": {},
@@ -1359,10 +1434,10 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(
-            CompactDslConversionError,
+            CompactDslValidationError,
             "does not match schema type number",
         ):
-            validate_compact_dsl_context(
+            validate_compact_dsl(
                 _serialize(rows),
                 task_spec=task_spec,
                 card_spec=card_spec,
@@ -1408,10 +1483,10 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(
-            CompactDslConversionError,
+            CompactDslValidationError,
             "Image.src",
         ):
-            validate_compact_dsl_context(
+            validate_compact_dsl(
                 _serialize(rows),
                 task_spec=task_spec,
                 card_spec={"dataBindings": []},
@@ -1421,10 +1496,10 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
             "resources/base/media/unknown.svg"
         )
         with self.assertRaisesRegex(
-            CompactDslConversionError,
+            CompactDslValidationError,
             "onClick is not present",
         ):
-            validate_compact_dsl_context(
+            validate_compact_dsl(
                 _serialize(rows),
                 task_spec=task_spec,
                 card_spec={"dataBindings": []},
@@ -1443,7 +1518,7 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
             ]
         )
 
-        result = validate_compact_dsl_context(
+        result = validate_compact_dsl(
             compact_dsl,
             task_spec={
                 "dataModelSchema": {"data": {"weather": {}}},

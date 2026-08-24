@@ -202,6 +202,10 @@ class SourceArtifactRepository:
         """兼容只需要正式 artifact 的现有调用方。"""
         return self._parse_document(content).artifact
 
+    def parse_document(self, content: str) -> ParsedSourceArtifact:
+        """解析本地调试脚本提供的完整 artifact 文本。"""
+        return self._parse_document(content)
+
     def _parse_document(self, content: str) -> ParsedSourceArtifact:
         """解析 artifact v2 及其可选的 designcompactdsl 调试代码块。"""
         blocks: dict[str, str] = {}

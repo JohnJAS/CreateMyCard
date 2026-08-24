@@ -5,22 +5,26 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.logger import logger
 from config.config import get_settings
 from custom.a2ui_model_client import A2UIModelClient
-from models.generation import DEFAULT_WIDGET_SIZE, WidgetSize
-from services.card_validation import validate_card
-from services.compact_dsl_a2ui_converter import (
-    CompactDslConversionError,
-    convert_compact_dsl_to_a2ui,
+from models.artifact import WidgetArtifact
+from models.generation import TaskSpec
+from services.generation_pipeline import (
+    DslProcessingContext,
+    DslProcessingResult,
+    DslProcessorKind,
+    QualityIssue,
+    get_dsl_processor,
 )
-from services.generation_pipeline import QualityIssue
 from services.prompt_builder import PromptBuilder
 from services.protocol_registry import A2UIProtocolRegistry
 from services.retry_controller import RetryController
+from services.source_artifact_repository import SourceArtifactRepository
+from services.validator import ArtifactValidator
 
 _OUTPUT_SEPARATOR = "==========================="
 _MODEL_FORMAT = "compact-dsl"
@@ -36,6 +40,15 @@ class CompactDslRepairResult:
     initial_errors: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class CompactDslArtifactSource:
+    """从结果件提取 repair 所需的极简协议和完整生成上下文。"""
+
+    artifact: WidgetArtifact
+    task_spec: TaskSpec
+    compact_dsl: str
+
+
 class CompactDslRepairError(RuntimeError):
     """极简协议经过有限次数 repair 后仍未通过转换或校验。"""
 
@@ -44,40 +57,44 @@ class CompactDslRepairError(RuntimeError):
         super().__init__("\n".join(errors))
 
 
-def _validation_message(diagnostic) -> str:
-    location = diagnostic.file_kind
-    if diagnostic.line is not None:
-        location += f":{diagnostic.line}"
-    if diagnostic.json_pointer:
-        location += f" {diagnostic.json_pointer}"
-    return f"{diagnostic.code}: {diagnostic.message} [{location}]"
-
-
-def _build_initial_prompt(system_prompt: str, size: WidgetSize) -> list[dict[str, str]]:
-    user_content = json.dumps(
-        {
-            "mode": "standalone-repair",
-            "size": size,
-            "instruction": "修复稍后提供的 Design Compact DSL，只输出完整的极简协议。",
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
+def load_compact_dsl_artifact(artifact_path: str | Path) -> CompactDslArtifactSource:
+    """读取 artifact v2 结果件，并取得 Design Compact DSL 与 TaskSpec。"""
+    path = Path(artifact_path)
+    parsed = SourceArtifactRepository().parse_document(
+        path.read_text(encoding="utf-8")
     )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content},
-    ]
+    compact_dsl = parsed.design_token
+    if compact_dsl is None or not compact_dsl.strip():
+        raise ValueError("artifact must contain a non-empty designcompactdsl block")
+    task_spec = TaskSpec.model_validate(parsed.artifact.taskSpec)
+    return CompactDslArtifactSource(
+        artifact=parsed.artifact,
+        task_spec=task_spec,
+        compact_dsl=compact_dsl,
+    )
 
 
 async def repair_compact_dsl(
-    compact_dsl: str,
+    artifact_path: str | Path,
     *,
-    size: WidgetSize = DEFAULT_WIDGET_SIZE,
     max_repair_attempts: int | None = None,
 ) -> CompactDslRepairResult:
-    """复用第四接口的转换、校验、RetryController 和模型 repair 链路。"""
-    if not compact_dsl.strip():
-        raise ValueError("compact_dsl must not be empty")
+    """从完整结果件复用第四接口上下文，修复其中的 Design Compact DSL。"""
+    source = load_compact_dsl_artifact(artifact_path)
+    return await _repair_compact_dsl_source(
+        source,
+        max_repair_attempts=max_repair_attempts,
+    )
+
+
+async def _repair_compact_dsl_source(
+    source: CompactDslArtifactSource,
+    *,
+    max_repair_attempts: int | None = None,
+) -> CompactDslRepairResult:
+    """执行与第四接口一致的 prompt、转换、校验和 repair 链路。"""
+    compact_dsl = source.compact_dsl
+    size = source.task_spec.size
 
     settings = get_settings()
     repair_attempt_limit = (
@@ -89,54 +106,49 @@ async def repair_compact_dsl(
     design_protocol = A2UIProtocolRegistry.read_design_protocol_profile(
         design_profile_id
     )
+    validation_protocol = A2UIProtocolRegistry(
+        source.artifact.meta.protocolProfileId
+    ).get_profile()
     system_prompt = A2UIProtocolRegistry.read_design_prompt(design_profile_id)
-    initial_prompt = _build_initial_prompt(system_prompt, size)
+    initial_prompt = PromptBuilder().build_design_compact(
+        source.task_spec,
+        system_prompt,
+    )
     model_profile = {
         "id": design_profile_id,
         "format": _MODEL_FORMAT,
     }
+    task_spec_value = source.task_spec.model_dump(mode="json", exclude_none=True)
+    processing_context = DslProcessingContext(
+        size=size,
+        card_spec=source.artifact.cardSpec,
+        task_spec=task_spec_value,
+        protocol_profile=design_protocol,
+        design_profile_id=design_profile_id,
+    )
+    processor = get_dsl_processor(DslProcessorKind.DESIGN_COMPACT)
     latest_dsl = ""
     latest_issues: tuple[QualityIssue, ...] = ()
+    latest_processing_result = DslProcessingResult(source_dsl="")
     model_client: A2UIModelClient | None = None
 
     def evaluate(source_dsl: str) -> list[str]:
-        nonlocal latest_dsl, latest_issues
-        try:
-            latest_dsl = convert_compact_dsl_to_a2ui(
-                source_dsl,
-                size=size,
-                protocol_profile=design_protocol,
-            )
-        except CompactDslConversionError as exc:
-            issue = QualityIssue(
-                stage="conversion",
-                code="DESIGN_CONVERSION_FAILED",
-                message=str(exc),
-            )
-            latest_dsl = ""
-            latest_issues = (issue,)
-            return [issue.repair_message()]
+        nonlocal latest_dsl, latest_issues, latest_processing_result
+        processing_result = processor.process(source_dsl, processing_context)
+        latest_processing_result = processing_result
+        latest_dsl = processing_result.standard_dsl
+        if processing_result.errors:
+            latest_issues = processing_result.errors
+            return [item.repair_message() for item in latest_issues]
 
-        try:
-            reporter = validate_card(dsl_text=latest_dsl)
-        except Exception as exc:
-            logger.error(
-                "[Repair Compact DSL] validator execution failed "
-                f"exception_type={type(exc).__name__} exception={exc!r}"
-            )
-            issue = QualityIssue(
-                stage="validation",
-                code="VALIDATOR_EXECUTION_FAILED",
-                message=f"validator execution failed: {exc}",
-            )
-            latest_issues = (issue,)
-            return [issue.repair_message()]
-        validation_errors = [
-            _validation_message(item)
-            for item in reporter.diagnostics
-            if item.severity == "error" and item.file_kind != "cardspec"
-        ]
-        latest_issues = tuple(
+        validation_artifact = source.artifact.model_copy(
+            update={"genui": latest_dsl}
+        )
+        validation_errors = ArtifactValidator().validate(
+            validation_artifact,
+            validation_protocol,
+        )
+        validation_issues = tuple(
             QualityIssue(
                 stage="validation",
                 code="ARTIFACT_VALIDATION_FAILED",
@@ -144,6 +156,12 @@ async def repair_compact_dsl(
             )
             for message in validation_errors
         )
+        latest_processing_result = DslProcessingResult(
+            source_dsl=processing_result.source_dsl,
+            standard_dsl=processing_result.standard_dsl,
+            issues=processing_result.issues + validation_issues,
+        )
+        latest_issues = validation_issues
         return [item.repair_message() for item in latest_issues]
 
     async def repair(source_dsl: str, errors: list[str]) -> str:
@@ -174,8 +192,11 @@ async def repair_compact_dsl(
         )
         if retry_result.errors:
             raise CompactDslRepairError(retry_result.errors)
+        final_compact_dsl = latest_processing_result.source_dsl
+        if not final_compact_dsl:
+            final_compact_dsl = retry_result.result
         return CompactDslRepairResult(
-            compact_dsl=retry_result.result,
+            compact_dsl=final_compact_dsl,
             dsl=latest_dsl,
             repair_count=retry_result.retryCount,
             initial_errors=tuple(retry_result.initialErrors),
@@ -186,14 +207,10 @@ async def repair_compact_dsl(
 
 
 def main() -> None:
-    """粘贴极简协议，转换并校验，失败时自动调用模型 repair。"""
+    """读取结果件，转换并校验极简协议，失败时自动调用模型 repair。"""
     logger.remove()
-    compact_dsl = r"""
-["root","Column",{"width":160,"height":160,"padding":8,"borderRadius":18,"clip":true},["title"]]
-["title","Text",{"content":"在这里粘贴极简协议","fontSize":20,"fontColor":"#E5000000"}]
-["/ui/state","ready"]
-"""
-    result = asyncio.run(repair_compact_dsl(compact_dsl))
+    artifact_path = Path(__file__).resolve().parents[2] / "docs" / "0824" / "0824.txt"
+    result = asyncio.run(repair_compact_dsl(artifact_path))
     print(result.compact_dsl.strip())
     print(_OUTPUT_SEPARATOR)
     print(result.dsl.rstrip())

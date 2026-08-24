@@ -594,11 +594,14 @@ class DataRow:
 CompactRow = ComponentRow | DataRow
 
 
-@dataclass(frozen=True)
-class CompactDslContextValidation:
-    """Deterministic validation result for TaskSpec and CardSpec usage."""
+def parse_compact_dsl_rows(compact_dsl: str) -> tuple[CompactRow, ...]:
+    """Parse Design Compact DSL into the row model shared with validation."""
+    return tuple(_parse_compact_rows(compact_dsl))
 
-    warnings: tuple[str, ...] = ()
+
+def build_compact_data_model(data_rows: list[DataRow]) -> dict[str, Any]:
+    """Build the first-frame DataModel represented by Compact DSL data rows."""
+    return _build_data_model(data_rows)
 
 
 def normalize_compact_dsl_design_tokens(
@@ -718,17 +721,6 @@ def _serialize_repaired_rows(
             )
         )
     return _serialize_rows(repaired_rows)
-
-
-def validate_compact_dsl_context(
-    compact_dsl: str,
-    *,
-    task_spec: dict[str, Any],
-    card_spec: dict[str, Any],
-) -> CompactDslContextValidation:
-    """Run only syntax-level Compact DSL checks before conversion."""
-    _parse_compact_rows(compact_dsl)
-    return CompactDslContextValidation()
 
 
 def convert_compact_dsl_to_a2ui(
@@ -2450,65 +2442,6 @@ def _schema_child(current: Any, token: str) -> Any | None:
     return current.get(token)
 
 
-def _schema_type(schema_node: Any) -> str | None:
-    if isinstance(schema_node, list):
-        return "array"
-    if not isinstance(schema_node, dict):
-        return None
-    schema_type = schema_node.get("type")
-    return schema_type if isinstance(schema_type, str) else None
-
-
-def _value_matches_schema_type(value: Any, expected_type: str) -> bool:
-    if expected_type == "string":
-        return isinstance(value, str)
-    if expected_type == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if expected_type == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    if expected_type == "boolean":
-        return isinstance(value, bool)
-    if expected_type == "object":
-        return isinstance(value, dict)
-    if expected_type == "array":
-        return isinstance(value, list)
-    if expected_type == "null":
-        return value is None
-    return True
-
-
-def _json_type_name(value: Any) -> str:
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "boolean"
-    if isinstance(value, str):
-        return "string"
-    if isinstance(value, int):
-        return "integer"
-    if isinstance(value, float):
-        return "number"
-    if isinstance(value, dict):
-        return "object"
-    if isinstance(value, list):
-        return "array"
-    return type(value).__name__
-
-
-def _unused_data_capability_warnings(
-    binding_paths: list[str],
-    card_spec: dict[str, Any],
-) -> list[str]:
-    warnings: list[str] = []
-    for root in _card_spec_data_roots(card_spec):
-        if any(_path_is_within(path, root) for path in binding_paths):
-            continue
-        warnings.append(
-            f"{root}: declared data capability is not used by any component."
-        )
-    return warnings
-
-
 def _card_spec_data_roots(card_spec: dict[str, Any]) -> list[str]:
     bindings = card_spec.get("dataBindings")
     if not isinstance(bindings, list):
@@ -2521,11 +2454,6 @@ def _card_spec_data_roots(card_spec: dict[str, Any]) -> list[str]:
         if isinstance(root, str) and root.startswith("/"):
             roots.append(root)
     return roots
-
-
-def _path_is_within(path: str, root: str) -> bool:
-    normalized_root = root.rstrip("/")
-    return path == normalized_root or path.startswith(f"{normalized_root}/")
 
 
 def _candidate_component_asset_source(component: ComponentRow) -> str | None:

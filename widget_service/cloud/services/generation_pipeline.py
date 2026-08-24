@@ -5,11 +5,14 @@ from enum import StrEnum
 from typing import Literal, Protocol
 
 from custom.model_transport import ModelBackend
+from services.card_validation import (
+    CompactDslValidationError,
+    validate_compact_dsl,
+)
 from services.compact_dsl_a2ui_converter import (
     CompactDslConversionError,
     convert_compact_dsl_to_a2ui,
     repair_compact_dsl_binding_paths,
-    validate_compact_dsl_context,
 )
 from services.protocol_registry import A2UIProtocolRegistry
 from services.terse_dsl_nested2_converter import (
@@ -126,11 +129,19 @@ class DesignCompactProcessor:
                 task_spec=context.task_spec,
                 card_spec=context.card_spec,
             )
-            context_result = validate_compact_dsl_context(
+        except CompactDslConversionError as exc:
+            return self._validation_failure(source_dsl, (str(exc),))
+
+        try:
+            validation_result = validate_compact_dsl(
                 source_dsl,
                 task_spec=context.task_spec,
                 card_spec=context.card_spec,
             )
+        except CompactDslValidationError as exc:
+            return self._validation_failure(source_dsl, exc.errors)
+
+        try:
             design_profile_id = context.design_profile_id or "design-compact-dsl"
             design_protocol = A2UIProtocolRegistry.read_design_protocol_profile(
                 design_profile_id
@@ -142,12 +153,12 @@ class DesignCompactProcessor:
             )
             warnings = tuple(
                 QualityIssue(
-                    stage="conversion",
-                    code="DESIGN_CONTEXT_WARNING",
+                    stage="validation",
+                    code="COMPACT_DSL_VALIDATION_WARNING",
                     message=message,
                     severity="warning",
                 )
-                for message in context_result.warnings
+                for message in validation_result.warnings
             )
             return DslProcessingResult(
                 source_dsl=source_dsl,
@@ -161,6 +172,21 @@ class DesignCompactProcessor:
                 message=str(exc),
             )
             return DslProcessingResult(source_dsl=source_dsl, issues=(issue,))
+
+    @staticmethod
+    def _validation_failure(
+        source_dsl: str,
+        errors: tuple[str, ...],
+    ) -> DslProcessingResult:
+        issues = tuple(
+            QualityIssue(
+                stage="validation",
+                code="COMPACT_DSL_VALIDATION_FAILED",
+                message=message,
+            )
+            for message in errors
+        )
+        return DslProcessingResult(source_dsl=source_dsl, issues=issues)
 
 
 class TerseNested2Processor:
