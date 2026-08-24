@@ -7,7 +7,7 @@ from typing import Any
 
 from anyio import to_thread
 
-from app.logger import logger
+from app.logger import _sanitize_json_log_value, logger
 from config.config import get_settings
 from models.artifact import WidgetArtifact
 from models.service import ArtifactSaveResult
@@ -127,7 +127,17 @@ class ArtifactStore:
         return ArtifactSaveResult(artifactUrl=artifact_url, artifactDigest=digest)
 
     def _request_block_body(self) -> str:
-        """WebSocket 请求保留原文，本地直调请求按 JSON 输出。"""
+        """解析请求体并在写入 artifact 前递归移除敏感字段。"""
         if isinstance(self.request_body, str):
-            return self.request_body
-        return json.dumps(self.request_body, ensure_ascii=False, indent=2)
+            try:
+                request_payload = json.loads(self.request_body)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    f"{_MODULE} artifact_request_body_invalid_json "
+                    f"exception_type={type(exc).__name__}"
+                )
+                request_payload = {}
+        else:
+            request_payload = self.request_body
+        sanitized_payload = _sanitize_json_log_value(request_payload)
+        return json.dumps(sanitized_payload, ensure_ascii=False, indent=2)

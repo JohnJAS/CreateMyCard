@@ -4491,6 +4491,7 @@ async def test_artifact_store_returns_structured_save_result(tmp_path, monkeypat
     workspace_dir = tmp_path / "workspace"
     mock_storage_dir = tmp_path / "mock_obs"
     monkeypatch.setattr(get_settings(), "WORKSPACE_ROOT", workspace_dir)
+    monkeypatch.setattr(get_settings(), "enable_sensitive_log_fields", True)
     monkeypatch.setattr(
         "services.artifact_store.file_obs",
         UploadFileOSMS(
@@ -4519,8 +4520,22 @@ async def test_artifact_store_returns_structured_save_result(tmp_path, monkeypat
         "content": {
             "userQuery": "生成天气卡片",
             "candidateDataBindings": [],
+            "uid": "content-secret-user",
+            "odid": "content-secret-device",
         },
-        "session": {"interactionId": "artifact-store-test"},
+        "session": {
+            "interactionId": "artifact-store-test",
+            "userId": "session-secret-user",
+        },
+        "userAuth": {
+            "user": {
+                "user_id": "nested-secret-user",
+                "displayName": "测试用户",
+            }
+        },
+        "uid": "top-level-secret-user",
+        "odid": "top-level-secret-device",
+        "udid": "non-redacted-device-field",
     }
     request_body = json_module.dumps(
         request_body_value,
@@ -4590,8 +4605,24 @@ async def test_artifact_store_returns_structured_save_result(tmp_path, monkeypat
         "\n```",
         1,
     )[0]
-    assert request_block == request_body
-    assert json_module.loads(request_block) == request_body_value
+    assert json_module.loads(request_block) == {
+        "content": {
+            "userQuery": "生成天气卡片",
+            "candidateDataBindings": [],
+        },
+        "session": {"interactionId": "artifact-store-test"},
+        "userAuth": {"user": {"displayName": "测试用户"}},
+        "udid": "non-redacted-device-field",
+    }
+    for sensitive_value in (
+        "content-secret-user",
+        "content-secret-device",
+        "session-secret-user",
+        "nested-secret-user",
+        "top-level-secret-user",
+        "top-level-secret-device",
+    ):
+        assert sensitive_value not in uploaded_content
     assert json_module.loads(repair_one_block) == repair_records[0].to_payload()
     assert json_module.loads(repair_two_block) == repair_records[1].to_payload()
     assert uploaded_content.endswith("```\n")
