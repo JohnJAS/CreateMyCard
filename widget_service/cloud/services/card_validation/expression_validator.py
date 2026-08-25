@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import re
 
-from .base import BaseValidator, expression_body, expression_like, expression_references
+from .base import (
+    BaseValidator,
+    expression_body,
+    expression_like,
+    expression_references,
+    is_single_wrapped_expression,
+)
 
 
 class ExpressionValidator(BaseValidator):
@@ -50,11 +56,7 @@ class ExpressionValidator(BaseValidator):
     def _check_expression(self, value: str, pointer: str, line: int | None, reporter) -> None:
         stripped = value.strip()
         if "{{" in stripped or "}}" in stripped:
-            if (
-                not (stripped.startswith("{{") and stripped.endswith("}}"))
-                or stripped.count("{{") != 1
-                or stripped.count("}}") != 1
-            ):
+            if not is_single_wrapped_expression(stripped):
                 reporter.add(
                     "error",
                     "EXPR_FULL_STRING_REQUIRED",

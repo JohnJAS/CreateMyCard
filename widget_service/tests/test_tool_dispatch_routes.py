@@ -1579,6 +1579,7 @@ def test_weak_agent_repairs_weather_request_from_overview_schema_and_preflight(
                         "uri": (
                             "hww://www.huawei.com/totemweather?"
                             "enterType=share&cityCode="
+                            "{{ ${/data/weather/location/cityCode} }}"
                         ),
                     },
                 },
@@ -1621,6 +1622,7 @@ def test_weak_agent_repairs_weather_request_from_overview_schema_and_preflight(
         "/candidateDataBindings/0/candidateOutputFields/4",
         "/candidateEventCandidates/0/action/call",
         "/candidateEventCandidates/0/action/args/intentName",
+        "/candidateEventCandidates/0/action/args/uri",
         "/candidateAssetIds/0",
     } <= issue_paths
     missing_city = next(
@@ -1636,6 +1638,9 @@ def test_weak_agent_repairs_weather_request_from_overview_schema_and_preflight(
     assert issues_by_code["EVENT_CALL_MISMATCH"][0]["expected"] == (
         weather_event["actionTemplate"]["call"]
     )
+    event_expression_issue = issues_by_code["EVENT_EXPRESSION_INVALID"][0]
+    assert event_expression_issue["path"].endswith("/action/args/uri")
+    assert "actionTemplate" in event_expression_issue["repairInstruction"]
     assert issues_by_code["UNKNOWN_CAPABILITY"][0][
         "referenceSource"
     ].endswith("assetCandidates[]")

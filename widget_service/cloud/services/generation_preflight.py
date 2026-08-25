@@ -20,7 +20,10 @@ from models.preflight import (
 )
 from services.capability_registry import CapabilityRegistry
 from services.card_spec_builder import CardSpecBuilder
-from services.card_validation.base import expression_references
+from services.card_validation.base import (
+    expression_references,
+    is_single_wrapped_expression,
+)
 from services.task_spec_builder import TaskSpecBuilder
 
 _MODULE = "[Generation Preflight]"
@@ -307,6 +310,12 @@ class GenerationPreflight:
                 "EVENT_ARGUMENT_SCHEMA_INVALID",
                 issues,
             )
+            self._append_event_expression_issues(
+                action.args,
+                f"{base_path}/action/args",
+                capability_id,
+                issues,
+            )
             template_reference_locations = self._data_reference_locations(
                 capability.actionTemplate.args
             )
@@ -383,6 +392,57 @@ class GenerationPreflight:
                     )
                 )
         return effective_events
+
+    def _append_event_expression_issues(
+        self,
+        args: dict[str, Any],
+        base_path: str,
+        capability_id: str,
+        issues: list[PreflightIssue],
+    ) -> None:
+        for relative_path, value in self._invalid_event_expressions(args):
+            issues.append(
+                self._invalid_issue(
+                    "EVENT_EXPRESSION_INVALID",
+                    f"{base_path}{relative_path}",
+                    "事件动态参数不是完整的 {{ ... }} 表达式。",
+                    "普通静态值、完整 {{ ... }} 表达式或合法 PathBinding",
+                    capability_id,
+                    actual_value=value,
+                    repair_instruction=(
+                        "从本轮能力概述重新完整复制该事件的 actionTemplate；"
+                        "不要把 {{ ... }} 表达式半嵌入普通字符串。"
+                    ),
+                    reference_source=_EVENT_SOURCE,
+                )
+            )
+
+    @classmethod
+    def _invalid_event_expressions(
+        cls,
+        value: Any,
+        parts: tuple[Any, ...] = (),
+    ) -> list[tuple[str, str]]:
+        if isinstance(value, str):
+            has_marker = "{{" in value or "}}" in value or "${" in value
+            if has_marker and not is_single_wrapped_expression(value):
+                return [(cls._parts_pointer(parts), value)]
+            return []
+        if isinstance(value, dict):
+            invalid_values = []
+            for name, child in value.items():
+                invalid_values.extend(
+                    cls._invalid_event_expressions(child, (*parts, name))
+                )
+            return invalid_values
+        if isinstance(value, list):
+            invalid_values = []
+            for index, child in enumerate(value):
+                invalid_values.extend(
+                    cls._invalid_event_expressions(child, (*parts, index))
+                )
+            return invalid_values
+        return []
 
     def _append_event_reference_issues(
         self,

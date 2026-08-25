@@ -136,6 +136,14 @@ def is_wrapped_expression(value: Any) -> bool:
     )
 
 
+def is_single_wrapped_expression(value: Any) -> bool:
+    """判断字符串是否恰好由一对 {{ ... }} 包裹。"""
+    if not is_wrapped_expression(value):
+        return False
+    stripped = value.strip()
+    return stripped.count("{{") == 1 and stripped.count("}}") == 1
+
+
 def expression_body(value: str) -> str:
     stripped = value.strip()
     if stripped.startswith("{{") and stripped.endswith("}}"):

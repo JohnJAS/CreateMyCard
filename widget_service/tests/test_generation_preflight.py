@@ -299,6 +299,40 @@ def test_preflight_rejects_event_data_path_outside_registered_template():
     assert issue.path == "/candidateEventCandidates/0/action/args/uri"
 
 
+def test_preflight_rejects_partially_embedded_event_expression():
+    registry = CapabilityRegistry(version=REGISTRY_VERSION)
+    event = registry.get_event_capability("event.open.weather")
+    assert event is not None
+    action = event.actionTemplate.model_dump(mode="json")
+    action["args"]["uri"] = (
+        "hww://www.huawei.com/totemweather?enterType=share&"
+        "cityCode={{ ${/data/weather/location/cityCode} }}"
+    )
+    request = _request(
+        candidateDataBindings=[_weather_binding()],
+        candidateEventCandidates=[
+            {
+                "capabilityId": event.id,
+                "action": action,
+            }
+        ],
+    )
+
+    result = _run(request)
+
+    issue = next(
+        item
+        for item in result.blocking_issues
+        if item.code == "EVENT_EXPRESSION_INVALID"
+    )
+    assert issue.path == "/candidateEventCandidates/0/action/args/uri"
+    assert issue.agentAction == "FIX_AND_RETRY"
+    assert issue.retryable is True
+    assert "actionTemplate" in issue.repairInstruction
+    assert result.card_spec is None
+    assert result.task_spec is None
+
+
 def test_preflight_accepts_legacy_static_weather_event_uri():
     registry = CapabilityRegistry(version=REGISTRY_VERSION)
     event = registry.get_event_capability("event.open.weather")
@@ -416,3 +450,38 @@ async def test_generation_preflight_failure_does_not_call_model_or_start_directi
     assert "修正全部 issues" in details["agentInstruction"]
     assert details["issues"][0]["path"].endswith("/prefectureName")
     assert "滨江区" not in str(details)
+
+
+@pytest.mark.asyncio
+async def test_partial_event_expression_does_not_call_model(monkeypatch):
+    def unexpected_generate(*_args, **_kwargs):
+        pytest.fail("an invalid event expression must not reach the model")
+
+    monkeypatch.setattr(A2UIModelClient, "generate", unexpected_generate)
+    registry = CapabilityRegistry(version=REGISTRY_VERSION)
+    event = registry.get_event_capability("event.open.weather")
+    assert event is not None
+    action = event.actionTemplate.model_dump(mode="json")
+    action["args"]["uri"] = (
+        "hww://www.huawei.com/totemweather?enterType=share&"
+        "cityCode={{ ${/data/weather/location/cityCode} }}"
+    )
+    request = _request(
+        candidateDataBindings=[_weather_binding()],
+        candidateEventCandidates=[
+            {
+                "capabilityId": event.id,
+                "action": action,
+            }
+        ],
+    )
+
+    with pytest.raises(GenerationPreflightError) as exc_info:
+        await WidgetGenerationService().generate_widget_card_compact_dsl(request)
+
+    details = exc_info.value.details()
+    issue = details["issues"][0]
+    assert details["modelCalled"] is False
+    assert details["requiredActions"] == ["FIX_AND_RETRY"]
+    assert issue["code"] == "EVENT_EXPRESSION_INVALID"
+    assert issue["path"] == "/candidateEventCandidates/0/action/args/uri"

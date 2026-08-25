@@ -1358,6 +1358,57 @@ class CompactDslA2uiConverterTest(unittest.TestCase):
             "/data/calendar/events/1/entityId",
         )
 
+    def test_does_not_restore_invalid_weather_uri_after_repair(self) -> None:
+        repaired_uri = (
+            "{{ 'hww://www.huawei.com/totemweather?enterType=share&cityCode=' "
+            "+ ${/data/weather/location/cityCode} }}"
+        )
+        invalid_candidate_uri = (
+            "hww://www.huawei.com/totemweather?enterType=share&"
+            "cityCode={{ ${/data/weather/location/cityCode} }}"
+        )
+        handler = {
+            "call": "clickToDeeplink",
+            "args": {
+                "intentName": "Weather_CityCode",
+                "bundleName": "",
+                "abilityName": "",
+                "uri": repaired_uri,
+            },
+        }
+        compact_dsl = _serialize(
+            [
+                [
+                    "root",
+                    "Column",
+                    {"width": 160, "height": 160, "onClick": [handler]},
+                    [],
+                ],
+            ]
+        )
+        task_spec = {
+            "eventCandidates": [
+                {
+                    "call": "clickToDeeplink",
+                    "args": {
+                        "intentName": "Weather_CityCode",
+                        "bundleName": "",
+                        "abilityName": "",
+                        "uri": invalid_candidate_uri,
+                    },
+                }
+            ],
+        }
+
+        repaired = repair_compact_dsl_binding_paths(
+            compact_dsl,
+            task_spec=task_spec,
+            card_spec={"dataBindings": []},
+        )
+
+        repaired_handler = json.loads(repaired)[2]["onClick"][0]
+        self.assertEqual(repaired_handler["args"]["uri"], repaired_uri)
+
     def test_inlines_local_values_without_data_capabilities(self) -> None:
         rows = [
             [
