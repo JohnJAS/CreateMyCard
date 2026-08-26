@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 import asyncio
+import hashlib
 import json
 import time
 import traceback
@@ -19,7 +20,12 @@ from api.schemas import (
     ToolRequestEnvelope,
     VersionedToolRequest,
 )
-from app.logger import json_for_log, logger, task_logger
+from app.logger import (
+    _sanitize_json_log_value,
+    json_for_log,
+    logger,
+    task_logger,
+)
 from app.websocket_metrics import websocket_metrics
 from config.config import get_settings
 from core.errors import ErrorCode
@@ -350,6 +356,43 @@ def _first_text(*values: Any, default: str = "") -> str:
     return default
 
 
+def _request_trace_hashes(payload: dict[str, Any]) -> dict[str, str]:
+    """从新旧工具包络提取用户、设备标识并生成不可逆排障摘要。"""
+    content = _mapping(payload.get("content"))
+    arguments = _mapping(payload.get("arguments"))
+    user_auth = _mapping(payload.get("userAuth"))
+    user = _mapping(user_auth.get("user"))
+    legacy_device = _mapping(arguments.get("device"))
+    user_value = _first_text(
+        user.get("userId"),
+        content.get("uid"),
+        arguments.get("uid"),
+        payload.get("uid"),
+    )
+    device_value = _first_text(
+        content.get("odid"),
+        legacy_device.get("odid"),
+        arguments.get("odid"),
+        payload.get("odid"),
+    )
+    return {
+        "user_trace_hash": _sha256_trace_value(user_value),
+        "device_trace_hash": _sha256_trace_value(device_value),
+    }
+
+
+def _sha256_trace_value(value: Any) -> str:
+    """为非空排障标识生成稳定的 SHA-256 摘要。"""
+    if value is None or not str(value).strip():
+        return ""
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+
+def _raw_request_for_log(payload: dict[str, Any]) -> str:
+    """始终移除入口请求中的敏感标识后再序列化。"""
+    return json_for_log(_sanitize_json_log_value(payload))
+
+
 def _model_request_context_from_payload(
     payload: dict[str, Any],
     request: VersionedToolRequest,
@@ -642,10 +685,13 @@ async def _serve_operation_websocket(
             # 完整协议校验前只提取关联 ID，保证原始请求日志也能归属当前轮次。
             raw_request_id = _request_id_from_raw_payload(payload)
             directive_size = _directive_size_from_raw_payload(payload)
+            trace_hashes = _request_trace_hashes(payload)
             task_logger.set_session_id(raw_request_id or "None")
             logger.info(
                 f"widget_operation_ws_raw_request_received operation={operation} "
-                f"request_body={json_for_log(payload)}"
+                f"user_trace_hash={trace_hashes['user_trace_hash']} "
+                f"device_trace_hash={trace_hashes['device_trace_hash']} "
+                f"request_body={_raw_request_for_log(payload)}"
             )
             started_at = time.perf_counter()
             request_id = raw_request_id

@@ -47,7 +47,9 @@ from api.routes import (
     _heartbeat_sender,
     _normalize_payload,
     _pick_device_rom_version,
+    _raw_request_for_log,
     _request_id_from_raw_payload,
+    _request_trace_hashes,
 )
 from app.logger import json_for_log
 from config.config import Settings, get_settings
@@ -503,7 +505,8 @@ def test_websocket_handler_sets_request_id_to_logger_context():
     )
     request_log_position = routes_source.index("widget_operation_ws_payload_received")
 
-    assert "from app.logger import json_for_log, logger, task_logger" in routes_source
+    logger_imports = ("json_for_log", "logger", "task_logger")
+    assert all(import_name in routes_source for import_name in logger_imports)
     assert raw_context_position < raw_request_log_position
     assert set_context_position < request_log_position
 
@@ -626,6 +629,36 @@ def test_json_for_log_removes_user_uid_recursively(monkeypatch):
         "sourceArtifactUrl": "https://obs.test/private-artifact.md",
         "udid": "device-identifier",
     }
+
+
+def test_request_trace_hashes_are_stable_and_ignore_sensitive_log_switch(monkeypatch):
+    payload = {
+        "content": {"odid": "private-device"},
+        "userAuth": {"user": {"userId": "private-user"}},
+    }
+    expected = {
+        "user_trace_hash": hashlib.sha256(b"private-user").hexdigest(),
+        "device_trace_hash": hashlib.sha256(b"private-device").hexdigest(),
+    }
+    assert all("uid" not in field and "odid" not in field for field in expected)
+
+    for enabled in (True, False):
+        monkeypatch.setattr(get_settings(), "enable_sensitive_log_fields", enabled)
+        assert _request_trace_hashes(payload) == expected
+
+
+def test_raw_request_for_log_always_removes_raw_identifiers(monkeypatch):
+    monkeypatch.setattr(get_settings(), "enable_sensitive_log_fields", True)
+    logged = json_module.loads(
+        _raw_request_for_log(
+            {
+                "content": {"odid": "private-device"},
+                "userAuth": {"user": {"userId": "private-user"}},
+            }
+        )
+    )
+
+    assert logged == {"content": {}, "userAuth": {"user": {}}}
 
 
 def _device() -> DeviceContext:
