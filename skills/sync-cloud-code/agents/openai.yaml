@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Cloud Code"
+  short_description: "Safely sync cloud code between Git repositories"
+  default_prompt: "Use $sync-cloud-code to sync the source cloud directory into the target repository."
