@@ -1,13 +1,15 @@
 ---
 name: sync-cloud-code
-description: "Synchronize committed changes one way between Git subdirectories, creating a separate target commit for each relevant source commit while excluding configuration and generated files and recording the source revision."
+description: "Synchronize the current committed contents of a Git subdirectory one way into another repository, independent of shared history, with exclusions, content verification, and one traceable target commit per sync."
 ---
 
 # Sync Cloud Code
 
-Synchronize **one way, one source commit at a time**. Replay each relevant source commit's scoped patch as a separate target commit, in ancestry order. Do not squash a range, copy the final HEAD directory over intermediate revisions, or cherry-pick an entire mixed-path commit. Source history is never modified; target SHAs differ because paths and messages are rewritten.
+Perform a **one-way, source-authoritative directory snapshot sync**. The desired content comes from a frozen source HEAD; determine changes by comparing current file content, not by replaying commits. No shared Git history, matching historical source baseline, or target/source commit correspondence is required. Create at most **one target commit per sync**, not one per source commit.
 
-## Defaults
+Do not run `git apply`, cherry-pick, search source history for a matching snapshot, or require a common ancestor to carry out this workflow. Source commit metadata is for traceability only and never decides which files to copy or whether a sync is necessary. The source/target direction is specified by the user, not inferred from which repository originally created the code.
+
+## Defaults and scope
 
 - Source repository: `D:\workspace\gittest\CreateMyCard`
 - Source path: `widget_service/cloud`
@@ -15,90 +17,73 @@ Synchronize **one way, one source commit at a time**. Replay each relevant sourc
 - Target path: `genui-agent/cloud`
 - Excluded: the source path's top-level `config/`, all `__pycache__/` directories, `*.pyc`, `*.pyo`, `*.pyd`, and `*.log`.
 
-User-provided paths override these defaults. Resolve repositories and subdirectories, require both paths to exist inside their stated repositories, and use repository-relative forward-slash paths for Git commands and metadata. The target top-level `cloud/config/` is preserved; other nested directories named `config` remain in scope.
+User-provided actual repository paths override these defaults. Verify both repositories are accessible and both subdirectories exist inside them. Do not treat a successful run on a test copy as validation of a different, inaccessible internal repository. Use repository-relative forward-slash paths in metadata. Nested config directories other than the top-level excluded one remain in scope.
 
-## Safety gates and baseline
+## Safety checks and before-report
 
-1. Read applicable repository instructions. Run `git status --short --branch` in both repositories and require clean worktrees and indexes, including no untracked user files. Stop and report dirty paths; do not stash or overwrite user changes.
-2. Verify target ignore rules cover `__pycache__/`, `*.py[cod]`, and `*.log`. If missing, ask before changing ignore files. Freeze source HEAD as a full SHA for this run; read patches from Git objects, not working files.
-3. Read full messages of commits reachable from target HEAD, newest first. Find the most recent actual sync commit whose `Source-Repo` and `Source-Path` exactly match. Accept both the current three-line message with semicolon-separated metadata in `[Description:]` and the legacy `sync: update ...` title with standalone trailers. Do not mistake a revert message quoting metadata for an import. Its `Source-Commit` is the baseline, including when the record came from the old snapshot workflow.
-4. Verify that the baseline exists in the source and is an ancestor of the frozen HEAD. If missing or not an ancestor, stop; never guess or silently reset the baseline. Target-side reverts do not rewind the baseline or automatically trigger reimport of old commits. No reverse synchronization or reconciliation is performed.
-5. If no record exists and the user has not supplied a baseline, first perform the read-only [scoped Git snapshot comparison](references/baseline-comparison.md): compare target HEAD's included file paths, blob IDs, and modes with recent source ancestor snapshots, ignoring only the configured exclusions. Present any matching source revision as a **candidate content baseline**, not proof of import history, and obtain user confirmation before replay. Report multiple matches honestly. If no exact match is found in the examined range, ask for the last source revision already represented in the target; do not infer a baseline from partial similarity. Alternatively, the user can explicitly request replay from the root of source history. Never silently invent a baseline or collapse initial history into a snapshot. Full-history replay may conflict with preexisting target files; use the same conflict gate below.
-6. Obtain the actual ticket number from this sync request, or ask before changing files. A ticket applies to all target commits in this run unless the user provides a per-commit mapping. Never invent it, reuse an old ticket, or treat the example `DTS2608260066700` as an assigned ticket.
+1. Read applicable repository instructions. Require both worktrees and indexes to be clean (`git status --short --branch`, including untracked files). Do not stash, reset, or mix user changes into the sync.
+2. Freeze source HEAD and target HEAD as full SHAs. Verify target ignore rules cover `__pycache__/`, `*.py[cod]`, and `*.log`; ask before editing ignore files if rules are missing.
+3. Run [scripts/verify_sync.py](scripts/verify_sync.py) in before mode with a new `--output` report outside both repositories. See [references/directory-audit.md](references/directory-audit.md) for flags. Supply the actual repository/path overrides consistently; do not audit the defaults and then write elsewhere.
+4. Exit 1 before a sync means content differences to review, not an execution failure. Exit 2 requires investigation before proceeding. In particular, report ignored, non-excluded source-local files; never copy them as committed source content.
+5. Report additions, same-path content replacements, and target-only files. Include the actual diff for changed text files when useful. A clean target may still have independent committed changes: source-authoritative copying will replace them, including deliberate target-side reverts. Clearly disclose this before writing; obtain confirmation for overwriting changed existing target files unless the user's request already explicitly authorizes that source-wins policy. Do not promise an automatic merge or preservation of independent edits within overwritten files.
+6. If there is nothing to synchronize under the agreed line-ending policy, report no changes without copying or creating an empty commit. Otherwise obtain the current TicketNo before writing. Never invent a ticket or reuse an example or previous run's number without the user's instruction.
 
-Changing this skill does not authorize running a new sync or rewriting existing target commits.
+Never require or invent an initial source baseline. Missing, stale, rewritten, or unrelated history does not block content comparison; it only limits any historical summary reported later.
 
-## Plan the source sequence
+## Build the committed source snapshot
 
-Enumerate commits without a path filter first, so merge topology cannot be hidden by history simplification:
+Create a unique temporary directory outside both repositories. Enumerate the frozen source snapshot with `git ls-tree -r -z <source-head> -- <source-path>`, filter the exclusions, and retain full relative paths. Materialize **only those committed regular files** from their Git blobs into the temporary directory, preserving bytes. Use `git cat-file` with binary subprocess I/O; do not route binary content through PowerShell text pipelines.
 
-```powershell
-git -C <source-repo> rev-list --reverse --topo-order <base>..<frozen-head>
-git -C <source-repo> rev-list --merges <base>..<frozen-head>
-```
+Do not recursively copy the live source worktree. A clean status alone does not exclude ignored files or freeze concurrent edits. Do not rely on `git archive` without accounting for export-ignore/export-subst behavior; the exported manifest must match the committed file list and each payload must match its blob. No automatic clean/smudge filters or LFS downloads are allowed. Stop for a specific handling decision if links, junctions, submodules, filters/LFS, or executable-mode differences prevent a faithful regular-file copy. Reject unsafe mapped paths and file-versus-directory collisions before writing.
 
-For explicitly authorized full-history replay, replace the range with `<frozen-head>`. If the range contains merges, stop before applying any changes and ask for a merge policy; do not replay both branch commits and the merged aggregate, pick a parent silently, or promise to preserve a nonlinear graph as a linear sequence.
+Record and verify the materialized file manifest and SHA256 hashes against the frozen blobs. Recheck that source and target HEADs/statuses have not changed since the before-report. Keep repositories idle during the operation; stop if unexpected concurrent changes appear.
 
-For each non-merge commit, compute its patch against its sole parent. For a root commit in full-history replay, use the empty tree as its parent (obtain it with `git hash-object -t tree --stdin` with zero input bytes). Filter the patch to the source path and exclusions before deciding relevance. Changes outside scope, including mixed-path portions of the same commit, are never imported. Empty filtered patches are reported as skipped, without target commits.
+## Preview and copy
 
-Preview source SHA, subject, and mapped added/modified/deleted paths for every relevant commit. Apply in ancestry order, not author timestamp order. An invocation to perform the sync authorizes the previewed scoped changes; otherwise obtain write authorization. Record the initial target HEAD for the final report.
-
-## Generate and apply one scoped patch
-
-Use a unique temporary patch file outside both repositories. Generate it with Git's `--output` option or capture subprocess stdout as bytes; do not pipe binary patches through PowerShell text formatting or rewrite patch headers with string replacement.
-
-For the default source path (substitute all pathspecs consistently when overridden):
+On Windows, use Robocopy on the **materialized snapshot**, not the source working directory:
 
 ```powershell
-git -C <source-repo> diff --binary --full-index --no-renames --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ --relative=widget_service/cloud --output=<patch-file> <parent> <source-commit> -- widget_service/cloud ':(exclude)widget_service/cloud/config' ':(glob,exclude)widget_service/cloud/**/__pycache__/**' ':(glob,exclude)widget_service/cloud/**/*.pyc' ':(glob,exclude)widget_service/cloud/**/*.pyo' ':(glob,exclude)widget_service/cloud/**/*.pyd' ':(glob,exclude)widget_service/cloud/**/*.log'
+robocopy <snapshot-dir> <target-repo>\<target-path> /E /L /FP /IS /IT /IM /R:1 /W:1 /XD "<snapshot-dir>\config" __pycache__ /XF *.pyc *.pyo *.pyd *.log
 ```
 
-`--no-renames` represents moves as deletion/addition, including moves across the excluded boundary. Source-tracked deletions inside scope are synchronized, unlike the old copy-only workflow. Never sweep or mirror the directory: target-only files absent from the patch are preserved. Inspect the mapped patch paths and require every path to stay within the target scope and outside exclusions; stop on unsafe paths or unsupported submodule changes.
-
-Before each application, recheck that the target is clean and at the expected last target commit. Then run from the target repository root:
+Review the preview against the approved content-difference manifest. Then use the same command without `/L`:
 
 ```powershell
-git -C <target-repo> apply --check --index -p1 --directory=<target-path> <patch-file>
-git -C <target-repo> apply --index -p1 --directory=<target-path> <patch-file>
+robocopy <snapshot-dir> <target-repo>\<target-path> /E /IS /IT /IM /R:1 /W:1 /XD "<snapshot-dir>\config" __pycache__ /XF *.pyc *.pyo *.pyd *.log
 ```
 
-Run the second command only after the first succeeds. `--relative` makes patch paths relative to the source subdirectory; `-p1` strips `a/` and `b/`, and `--directory` maps them into the target subdirectory. `--index` stages only the patch changes. See [Git diff](https://git-scm.com/docs/git-diff) and [Git apply](https://git-scm.com/docs/git-apply) for option semantics.
+`/IS /IT /IM` includes same, tweaked, and change-time-modified files, avoiding those metadata-based skip categories; it can recopy unchanged files. Windows tests reproduced a same-size/same-mtime content mismatch that `/IS /IT` alone could still skip, so retain `/IM` as well. Hash verification, not Robocopy's copied-file count, establishes the result. Treat codes 0-7 as nonfatal transport results, not proof of equality; stop on code 8 or higher and do not commit. See [Robocopy documentation](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/robocopy).
 
-If the check fails, skip as already present only after verifying every affected target file matches the source commit's full postimage and mode, including absence for deleted paths. A reverse-apply check alone is not enough. If only part is present or there is any divergence, stop and report the source SHA and conflicting paths. Do not partially apply, use `--reject`, force source files over conflicts, auto-merge, or skip failed commits and continue.
+Use `/E`, never `/MIR`, `/PURGE`, `/MOVE`, or `/MOV`. **Preserve all target-only files, including source-deleted files left in the target.** Report these as possible stale files without guessing whether they should be removed. Renames can therefore leave an old target file plus the new name. Deletion or cleanup requires a separate explicit request.
 
-## Validate and commit each patch separately
+On non-Windows systems, use an equivalent recursive regular-file copy from the validated snapshot, overwriting in-scope files regardless of timestamp where needed, without deleting target-only files. Preserve the same exclusions and validation.
 
-After each successful application:
+## Validate before committing
 
-```powershell
-git -C <target-repo> status --short
-git -C <target-repo> diff --cached --check
-git -C <target-repo> diff --cached --stat
-git -C <target-repo> diff --cached --name-status
-```
+Run the after audit with `--phase after --before-report <before.json> --output <new-after.json>` and the same paths and line-ending policy. Require exit 0; verify there are no missing/content-mismatched source files, no protected target config/target-only changes, no unexpected dirty paths, and no source HEAD change. Git LF/CRLF conversion must be treated explicitly: default to byte equality, and use `--ignore-crlf` only when repository policy permits that equivalence. Do not alter repository settings to make the check pass.
 
-Verify the staged patch is restricted to the expected mapped changes; do not run a broad `git add`. Check excluded paths and target-only files are unchanged. Run applicable focused checks in proportion to risk before committing. If validation fails, stop without committing this patch; leave its state visible for investigation and report earlier successful commits. Do not reset, delete, or stash those changes automatically.
+Also run `git diff --check` and review `git diff --stat` plus untracked additions. The audit checks file content, not executable modes or application behavior; inspect applicable Git modes and run focused syntax/tests in proportion to the changes. A successful copy or whitespace check alone is not enough.
 
-If no staged changes remain, do not create an empty commit. Otherwise create exactly one commit for this source commit, using exactly three lines:
+Stage **only the approved in-scope changed/added file list**. Do not use broad `git add .` or stage excluded/target-only files. Inspect `git diff --cached --name-status`, `git diff --cached --check`, and staged file contents against source blobs (accounting for explicitly allowed Git line-ending conversion). If new copied files are ignored by other target rules, stop and ask how to handle those rules; do not force-add silently.
+
+If there are no staged changes, do not create an empty commit. On copy, audit, staging, test, or commit failure, stop and report the exact remaining state. Do not auto-reset partially copied files, stash them, bypass hooks, or claim completion.
+
+## Commit format and provenance
+
+Create one target commit with exactly these three lines, preserving the complete Description on one physical line:
 
 ```text
 [TicketNo:] <user-provided-ticket-number>
-[Description:] sync: update <target-path> from <source-repo-name>@<short-source-commit>; Source-Repo: <source-repo-name>; Source-Path: <source-path>; Source-Commit: <full-source-commit-sha>; Source-Base: <previous-checkpoint-sha-or-initial>; Source-Commits: 1; Excluded-Path: <source-path>/config
+[Description:] sync: update <target-path> from <source-repo-name>@<short-source-head>; Source-Repo: <source-repo-name>; Source-Path: <source-path>; Source-Commit: <full-frozen-source-head>; Source-Base: <previous-reported-source-sha-or-unknown>; Source-Commits: <verified-count-or-unknown>; Excluded-Path: <source-path>/config; Sync-Mode: snapshot
 [Binary Source:] No
 ```
 
-Keep the entire Description on **one physical line**, with semicolon-separated metadata. `Source-Commit` is this individual source commit, never the final run HEAD unless that is the commit being applied. `Source-Base` is the last recorded imported source SHA (or user-selected initial baseline, or `initial` for root replay). Advance the checkpoint only after the target commit succeeds. Skipped commits do not create checkpoint-only or empty commits; trailing skips may be examined again on the next run and must be reported honestly.
+`Source-Commit` identifies the source snapshot imported. `Source-Base` is optional historical context expressed as `unknown` when unavailable; it is not a copy prerequisite or proof that the target previously equaled that revision. If a prior matching sync record exists and its source SHA is a valid ancestor, a source-path-filtered history summary/count may be included for reference only. Otherwise use `unknown`; do not fabricate a commit range, pretend an initial snapshot represents one historical change, or block copying because metadata is unavailable. Even when Source-Commit equals a previous record, inspect actual content: target drift may still need a reviewed replacement.
 
-Write the exact message as UTF-8 to a temporary file outside the repositories and use `git commit --file <message-file>`. Verify the resulting three-line message, record the source-to-target SHA mapping, and require a clean target before advancing to the next source commit. Stop on hook/commit failure, retain the staged patch, and never bypass hooks. If a validator rejects Description metadata, ask how it may be retained instead of dropping the baseline.
+Write the exact UTF-8 message to a temporary file outside both repositories and use `git commit --file <message-file>`. Verify the resulting three-line message. If the target validator rejects provenance fields in Description, ask how they may be recorded; never bypass validation. Do not amend old commits, rewrite existing history, or push unless separately requested.
 
-Do not amend existing commits, reset history, push, or force-push unless separately requested. A stopped run retains earlier successful commits; a later invocation resumes after their recorded source checkpoint once any outstanding dirty state is resolved.
+## Final report
 
-## Final verification and report
+Verify both repositories' final status, the frozen source SHA, and the new target commit if any. Report changed files, excluded/preserved paths, target-only leftovers, content and test results, and the single target commit SHA. State that independent source commits were not recreated and historical counts may be unknown. A partial copy is not a completed sync.
 
-Verify both repository statuses, target commit messages, and the ordered source-to-target mapping. For replay into a matching baseline, verify the resulting imported files against the source objects. Do not use a final bulk copy to hide differences; target-only files, exclusions, and target-side reverts may intentionally differ. Report any unexpected divergence.
-
-Report the source range, count of relevant commits, count actually imported, skipped commits with reasons, target SHAs and changed paths, checks performed, preserved exclusions and target-only files, and any source deletions applied. If interrupted, identify the failed source commit, last successful checkpoint, and any staged/uncommitted changes. Never report a partially completed range as fully synchronized.
-
-## Optional read-only directory audit
-
-Use [scripts/verify_sync.py](scripts/verify_sync.py) to audit a proposed or completed directory copy against source HEAD, including SHA256 differences, ignored local source files, missing ignore rules, unsafe links, and target-only files. A saved before-report can check that target config and target-only files remain unchanged. Read [references/directory-audit.md](references/directory-audit.md) for usage and limitations. This diagnostic does not copy files, determine historical provenance, or change the per-commit sync strategy above. Whole-directory differences can be intentional after target-side reverts; do not overwrite them simply to make this diagnostic pass.
+Changing this skill only updates the workflow; it does not itself authorize a repository sync, an overwrite, or rewriting prior per-commit imports.

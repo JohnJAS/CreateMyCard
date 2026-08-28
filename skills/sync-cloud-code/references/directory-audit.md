@@ -1,5 +1,7 @@
 # Read-only directory audit
 
+The skill uses content-based snapshot copying and one target commit per sync. This audit does not depend on matching source/target history or an initial commit baseline. Use it before and after the source-authoritative copy; commit metadata is retained only for provenance.
+
 `scripts/verify_sync.py` requires Python 3.10+ and Git, with no additional packages. It does not run Robocopy, copy files, execute Git filters, stage, commit, change Git settings, delete files, or access the network. It reads both repositories and may create a **new** report file outside them when `--output` is supplied. Existing report files are never overwritten.
 
 The defaults are the CreateMyCard and GenUI paths in the skill. Override with `--source-repo`, `--source-path`, `--target-repo`, and `--target-path`.
@@ -51,4 +53,4 @@ The before-report stores hashes of target top-level config and target-only files
 python -B -X utf8 C:\Users\shengjiajun\.codex\skills\sync-cloud-code\scripts\test_verify_sync.py -v
 ```
 
-Tests create isolated temporary Git repositories. They cover same-size/same-time differences (including an actual Windows Robocopy reproduction), exclusions, ignored files, dirty source content, LF/CRLF policy, protected files, scope escapes, links/junctions, binary and Unicode files, and absence of writes to repository data and Git metadata.
+Tests create isolated temporary Git repositories. They cover same-size/same-time differences (including an actual Windows Robocopy reproduction), source-authoritative snapshot copying across independent target changes, exclusions, ignored files, dirty source content, LF/CRLF policy, protected files, scope escapes, links/junctions, binary and Unicode files, and absence of writes to repository data and Git metadata during audits.

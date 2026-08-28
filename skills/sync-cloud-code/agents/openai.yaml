@@ -1,4 +1,4 @@
 interface:
   display_name: "Sync Cloud Code"
-  short_description: "Sync cloud code one way, preserving commit boundaries"
-  default_prompt: "Use $sync-cloud-code to sync the source cloud directory into the target repository, creating a separate target commit for each relevant source commit."
+  short_description: "Sync committed cloud snapshots with content verification"
+  default_prompt: "Use $sync-cloud-code to sync the current committed source cloud snapshot into the target repository, verify content and exclusions, and create one traceable target commit."

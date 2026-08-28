@@ -62,10 +62,11 @@ class AuditTests(unittest.TestCase):
         self.assertEqual((self.snapshot(self.src), self.snapshot(self.dst)), before)
 
     def test_same_size_same_timestamp_content_difference(self):
-        original = (self.dst / "cloud/a.py").stat()
+        original = (self.src / "cloud/a.py").stat()
         self.write(self.dst, "cloud/a.py", b"value=2\n")
-        os.utime(self.dst / "cloud/a.py", ns=(original.st_atime_ns, original.st_mtime_ns))
         self.commit(self.dst)  # Clean target with a committed independent change.
+        # Restore time only after recording the changed content, avoiding Git's stat cache.
+        os.utime(self.dst / "cloud/a.py", ns=(original.st_atime_ns, original.st_mtime_ns))
         result = audit.inspect(self.args)
         self.assertEqual(result["exit_code"], 1)
         self.args.ignore_crlf = True
@@ -150,6 +151,46 @@ class AuditTests(unittest.TestCase):
         self.assertLess(result.returncode, 8)
         self.assertEqual(target_file.read_bytes(), b"value=2\n")
         self.assertEqual(audit.inspect(self.args)["exit_code"], 1)
+
+    @unittest.skipUnless(os.name == "nt", "Robocopy is Windows-specific")
+    def test_snapshot_copy_handles_divergence_and_preserves_protected_files(self):
+        # The two repositories have independent committed content and no sync metadata.
+        self.write(self.src, "cloud/a.py", b"value=2\n")
+        self.write(self.src, "cloud/new.py", b"new=True\n")
+        self.commit(self.src)
+        self.write(self.dst, "cloud/a.py", b"value=9\n")
+        self.write(self.dst, "cloud/config/local.txt", b"target secret config\n")
+        self.write(self.dst, "cloud/target-only.py", b"keep=True\n")
+        self.commit(self.dst)
+        before = audit.inspect(self.args)
+        self.assertEqual(before["exit_code"], 1)
+        report_path = self.root / "before.json"
+        report_path.write_text(json.dumps(before), encoding="utf-8")
+        snapshot = self.root / "snapshot"
+        manifest, _ = audit.committed_files(self.src, before["source_commit"], "cloud")
+        for name, expected in manifest.items():
+            payload = self.git(self.src, "cat-file", "blob", before["source_commit"] + ":cloud/" + name)
+            self.assertEqual(audit.digest(payload)["sha256"], expected["sha256"])
+            self.write(snapshot, name, payload)
+        stamp = 1_700_000_000_000_000_000
+        for path in (snapshot / "a.py", self.dst / "cloud/a.py"):
+            os.utime(path, ns=(stamp, stamp))
+        source_before = self.snapshot(self.src)
+        command = ["robocopy", str(snapshot), str(self.dst / "cloud"), "/E", "/IS", "/IT", "/IM", "/R:1", "/W:1",
+                   "/XD", str(snapshot / "config"), "__pycache__", "/XF", "*.pyc", "*.pyo", "*.pyd", "*.log"]
+        target_before = self.snapshot(self.dst)
+        preview = subprocess.run(command + ["/L"], capture_output=True)
+        self.assertLess(preview.returncode, 8)
+        self.assertEqual(self.snapshot(self.dst), target_before)
+        copied = subprocess.run(command, capture_output=True)
+        self.assertLess(copied.returncode, 8)
+        self.args.phase, self.args.before_report = "after", str(report_path)
+        after = audit.inspect(self.args)
+        self.assertEqual(after["exit_code"], 0, json.dumps({"missing": after["missing_target_files"], "changed": after["different_target_files"], "copy_output": copied.stdout.decode("utf-8", "replace")}, ensure_ascii=True))
+        self.assertEqual(after["protected_target_changes"], [])
+        self.assertEqual(after["target_only_files"], ["target-only.py"])
+        self.assertEqual(self.snapshot(self.src), source_before)
+        self.assertEqual((self.dst / "cloud/a.py").read_bytes(), b"value=2\n")
 
     def test_missing_ignore_rules(self):
         self.write(self.dst, ".gitignore", b"*.log\n")
