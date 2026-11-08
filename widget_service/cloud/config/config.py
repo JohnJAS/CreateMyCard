@@ -229,6 +229,26 @@ class Settings(BaseSettings):
     deepseek_platform_message_name: str = "llmRecognize"
     deepseek_platform_default_country_code: str = "CN"
     deepseek_platform_default_app_name: str = "com.huawei.hmos.vassistant"
+    # AS（AccessService）云云 OpenAI 兼容通道配置，对接 WIKI2026032810582821
+    as_ws_url: str = CONFIG.get("as_ws_url", "")
+    as_receiver: str = CONFIG.get("as_receiver", "LLM-OPENAI-WS")
+    as_message_name: str = CONFIG.get("as_message_name", "chatCompletions")
+    as_sender: str = CONFIG.get("as_sender", "GenUIAgentService")
+    as_api_key: str = CONFIG.get("as_api_key", "AccessService")
+    as_access_key: str = CONFIG.get("as_access_key", "")
+    # 开发测试环境允许配置 SK 明文；生产必须改为只配 STS 项引用。
+    as_secret_key: str = Field(default=CONFIG.get("as_secret_key", ""), repr=False)
+    as_secret_key_sts_config_key: str = CONFIG.get("as_secret_key_sts_config_key", "")
+    as_device_id: str = CONFIG.get("as_device_id", "")
+    as_locate: str = CONFIG.get("as_locate", "CN")
+    as_app_name: str = CONFIG.get("as_app_name", "com.huawei.hmos.vassistant")
+    as_app_version: str = CONFIG.get("as_app_version", "")
+    as_model: str = CONFIG.get("as_model", "")
+    as_temperature: float = CONFIG.get("as_temperature", 0.7)
+    as_top_p: float = CONFIG.get("as_top_p", 0.9)
+    as_top_k: int = CONFIG.get("as_top_k", 1)
+    as_max_tokens: int = CONFIG.get("as_max_tokens", 128000)
+    as_enable_thinking: bool = CONFIG.get("as_enable_thinking", "false") == "true"
     # 模型限流配置
     enable_model_failure_retry: bool = CONFIG.get("enable_model_failure_retry") == "true"
     model_failure_max_retry_attempts: int = CONFIG.get("model_failure_max_retry_attempts")
@@ -452,6 +472,7 @@ class Settings(BaseSettings):
     def validate_model_provider(cls, value: str) -> str:
         allowed = {
             "mep",
+            "as_openai",
             "deepseek_platform",
             "llmclient",
             "deepseek_official_http",

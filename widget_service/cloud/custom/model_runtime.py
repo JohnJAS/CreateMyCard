@@ -11,6 +11,7 @@ from functools import partial
 from app.logger import logger
 from config.config import Settings, get_settings
 from custom.aliyun_bailian_transport import AliyunBailianHttpTransport
+from custom.as_openai_ws_transport import AsOpenAiWsTransport
 from custom.deepseek_official_http_transport import DeepSeekOfficialHttpTransport
 from custom.deepseek_platform_client import DeepSeekPlatformClient
 from custom.llmclient import LLMClientOptions, stream_genui
@@ -68,6 +69,7 @@ class ModelExecutionRuntime:
         settings: Settings | None = None,
         *,
         mep_transport: MepModelTransport | None = None,
+        as_openai_transport: ModelTransport | None = None,
         deepseek_platform_transport: ModelTransport | None = None,
         llmclient_transport: ModelTransport | None = None,
         deepseek_official_http_transport: DeepSeekOfficialHttpTransport | None = None,
@@ -76,6 +78,7 @@ class ModelExecutionRuntime:
         self.settings = settings or get_settings()
         self._semaphore = asyncio.Semaphore(self.settings.model_max_concurrency)
         self._mep_transport = mep_transport or MepModelTransport(self.settings)
+        self._as_openai_transport = as_openai_transport or AsOpenAiWsTransport(self.settings)
         self._deepseek_platform_transport = deepseek_platform_transport or DeepSeekPlatformClient(
             self.settings
         )
@@ -202,6 +205,9 @@ class ModelExecutionRuntime:
     ) -> str:
         if provider == "mep":
             operation = self._mep_transport.generate(messages)
+            return await self._await_async_provider(provider, operation)
+        if provider == "as_openai":
+            operation = self._as_openai_transport.generate(messages, request_context)
             return await self._await_async_provider(provider, operation)
         if provider == "deepseek_platform":
             if request_context is None:
