@@ -95,11 +95,11 @@ def test_registered_photo_panel_preserves_approved_surface_palette(photo):
     assert themes.foreground_signature(result) == themes.foreground_signature(source())
 
 
-@pytest.mark.parametrize("rgb,photo_id", [
-    ("000000", "photo-ux-meeting-room-wide"),
-    ("FFFFFF", "photo-ux-mountain-sunset-lake-wide"),
+@pytest.mark.parametrize("photo_id", [
+    "photo-ux-gradient-wide",
+    "photo-ux-mountain-sunset-lake-wide",
 ])
-def test_wide_pill_info_and_card_button_use_consistent_surface_palette(rgb, photo_id):
+def test_wide_pill_info_and_card_button_use_consistent_surface_palette(photo_id):
     rows = [
         ["root", "Layout", {"layout": "W-content-side-slots"}, ["main", "upper", "lower"]],
         ["main", "Region", {"variant": "title-content-action"}, ["header", "body", "action"]],
@@ -113,16 +113,16 @@ def test_wide_pill_info_and_card_button_use_consistent_surface_palette(rgb, phot
     sample = expanded(rows, {"size": "2x4", "appVersion": "99.0.0"})
     photo = next(item for item in registry.registered_themes("photos")
                  if item.get("id") == photo_id)
+    roles = photo.get("content", {}).get("roles", {})
+    component_color = roles.get("componentSecondary")
     result = themes.apply_theme(sample.source, photo, sample.task, {})
     for identity in ("upper", "lower", "action"):
         styles = node_by_id(result, identity).get("styles", {})
-        assert styles.get("backgroundColor") == "#33" + rgb
+        assert styles.get("backgroundColor") == component_color
         assert styles.get("backdropBlur") == {"radius": 20}
     for node in themes.components(themes.decode(result)):
         if node.get("component") == "Text":
-            assert node.get("styles", {}).get("fontColor") in {
-                "#FF" + rgb, "#CC" + rgb, "#99" + rgb,
-            }
+            assert node.get("styles", {}).get("fontColor") in set(roles.values())
     assert themes.foreground_signature(result) == themes.foreground_signature(sample.source)
 
 

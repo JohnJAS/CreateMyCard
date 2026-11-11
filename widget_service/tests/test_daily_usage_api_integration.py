@@ -24,6 +24,12 @@ from test_daily_usage_routes import final_message, frame_info, payload, run_rout
 pytestmark = pytest.mark.usefixtures("daily_usage_auth")
 
 
+def _assert_limit_feedback(message):
+    assert message.get("message") == get_settings().daily_usage_limit_exceeded_message
+    assert message.get("retryable") is False
+    assert message.get("requiredActions") == ["STOP"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("operation", sorted(routes.GENERATION_OPERATIONS))
 @pytest.mark.parametrize(
@@ -73,7 +79,7 @@ async def test_api_failure_bypasses_without_counting_and_recovery_enforces_limit
         finals = [frame for frame in frames if frame_info(frame).get("streamType") == "final"]
         assert len(finals) == 2
         assert final_message([finals[0]]).get("status") == "success"
-        assert final_message([finals[1]]).get("errorCode") == ErrorCode.DAILY_USAGE_LIMIT_EXCEEDED
+        _assert_limit_feedback(final_message([finals[1]]))
         assert len(generated) == 1
         assert calls == (["/snapshot"] if failure == "sts" else ["/snapshot", "/snapshot"])
         assert settings.enable_daily_usage_limit is True
@@ -231,7 +237,7 @@ def test_real_app_lifespan_websocket_and_http_adapter(monkeypatch):
     assert len(api.queries) == 3
     assert results[0].get("status") == "success"
     assert results[1].get("status") == "success"
-    assert results[2].get("errorCode") == ErrorCode.DAILY_USAGE_LIMIT_EXCEEDED
+    _assert_limit_feedback(results[2])
     assert application.state.daily_usage_limiter is None
     assert clients
     assert clients[0].is_closed

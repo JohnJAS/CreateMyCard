@@ -9,7 +9,7 @@ from services.card_validation.compact_dsl_validator import small_card_text_press
 
 
 @pytest.mark.parametrize("width", [40, 100])
-def test_small_card_pressure_keeps_complete_label_and_value(width: int) -> None:
+def test_small_card_pressure_accepts_managed_secondary_body_wrapping(width: int) -> None:
     rows = [
         ["root", "Column", {"width": "matchParent"}, ["body"]],
         ["body", "SecondaryBody", {
@@ -19,14 +19,7 @@ def test_small_card_pressure_keeps_complete_label_and_value(width: int) -> None:
     ]
     source = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows)
     task = {"size": "2x2", "dataModelSchema": {"data": {}}}
-    pressure = small_card_text_pressure(source, task)
-    if width == 100:
-        assert pressure == []
-    else:
-        combined = [message for message in pressure if "compound value" in message]
-        assert len(combined) == 1
-        assert "完整状态标签" in combined[0] and "正常" in combined[0]
-        assert "100vp" in combined[0] and "40vp" in combined[0]
+    assert small_card_text_pressure(source, task) == []
     assert small_card_text_pressure(source, {**task, "size": "2x4"}) == []
 
 

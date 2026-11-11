@@ -323,7 +323,7 @@ def test_dual_action_multiple_facts_still_require_actual_capacity(fits: bool) ->
     if fits:
         validate_compact_dsl(source, task_spec=task, card_spec=card, compact_plan=plan)
     else:
-        with pytest.raises(CompactDslValidationError, match="text width overflow"):
+        with pytest.raises(CompactDslValidationError, match="vertical layout requires"):
             validate_compact_dsl(source, task_spec=task, card_spec=card, compact_plan=plan)
 
 

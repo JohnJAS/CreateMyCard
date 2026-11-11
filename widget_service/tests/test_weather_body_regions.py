@@ -123,7 +123,8 @@ def test_two_sunsets_share_the_same_uniform_pool(monkeypatch, selected):
 def test_weather_wide_rules_do_not_change(direction):
     saved = focus_sample("weather", 4, direction)
     for identity in (*SUNSETS, CLOUD):
-        assert rejection(saved, identity.replace("square", "wide")) is None
+        rejected = rejection(saved, identity.replace("square", "wide"))
+        assert (rejected is None) is (direction == "left")
 
 
 def test_unknown_text_or_nonleft_alignment_is_not_relaxed():

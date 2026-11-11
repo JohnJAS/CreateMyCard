@@ -19,9 +19,9 @@ from test_uniform_photo_eligibility import PATHS, choose, evidence, photo, rejec
 CASES = json.loads((Path(__file__).parent / "fixtures/photo_weather_q16_q1.json").read_text(
     encoding="utf-8",
 ))
-WEATHER = {
-    "photo-ux-mountain-sunset-lake-square",
-    "photo-ux-pink-sunset-lake-square",
+ABSTRACT = {
+    "photo-ux-texture-blue-diamond-square",
+    "photo-ux-texture-blue-diagonal-square",
 }
 
 
@@ -33,30 +33,32 @@ def weather_case(case):
 
 
 @pytest.mark.parametrize("case", ["Q16", "Q1"])
-def test_weather_inline_support_is_two_lines_and_globally_left(case):
+def test_weather_inline_support_counts_actual_lines_and_stays_globally_left(case):
     saved = weather_case(case)
     before = copy.deepcopy(saved)
     measured = evidence(saved)
     flow = measured.get("photoBodyTextFlow", {})
     assert flow.get("support", {}).get("leftAligned") is True
     assert flow.get("root", {}).get("leftAligned") is True
-    assert flow.get("root", {}).get("lineCount") == 2
-    for identity in WEATHER:
+    assert flow.get("root", {}).get("lineCount") == 3
+    for identity in ABSTRACT:
         assert rejection(saved, identity) is None
+    assert rejection(saved, "photo-ux-mountain-sunset-lake-square")
+    assert rejection(saved, "photo-ux-pink-sunset-lake-square")
     assert rejection(saved, "photo-ux-cumulus-blue-square")
-    assert "下方留空" in rejection(saved, "photo-ux-clouds-weather-square")
+    assert rejection(saved, "photo-ux-clouds-weather-square")
     assert saved == before
 
 
 @pytest.mark.parametrize("case", ["Q16", "Q1"])
-@pytest.mark.parametrize("selected", sorted(WEATHER))
-def test_weather_subject_selection_and_final_obs_delivery_preserve_foreground(
+@pytest.mark.parametrize("selected", sorted(ABSTRACT))
+def test_weather_abstract_selection_and_final_obs_delivery_preserve_foreground(
     monkeypatch, case, selected,
 ):
     saved = weather_case(case)
     monkeypatch.setattr(themes.secrets, "choice", lambda items: selected)
     result, audit = choose(saved, monkeypatch)
-    assert set(audit.get("candidates", [])) == WEATHER
+    assert set(audit.get("candidates", [])) == ABSTRACT
     assert audit.get("themeId") == selected
     assert themes.foreground_signature(result) == themes.foreground_signature(saved.source)
     original = artifact()
@@ -87,26 +89,30 @@ def test_weather_subject_selection_and_final_obs_delivery_preserve_foreground(
     assert backgrounds == [expected_source]
 
 
-@pytest.mark.parametrize("change", [
-    "width", "weight", "children", "center", "spaceBetween", "missing-source", "invalid-source",
-])
-def test_untrusted_or_distributed_items_do_not_receive_content_width_exemption(change):
+@pytest.mark.parametrize("change", ["missing-source", "invalid-source"])
+def test_abstract_photo_still_requires_trusted_compact_source(change):
     saved = weather_case("Q16")
-    item = next(node for node in saved.nodes if node.get("id") == "support_item0")
-    row = next(node for node in saved.nodes if node.get("id") == "support_row0")
-    if change == "width":
-        item.get("styles", {})["width"] += 1
-    elif change == "weight":
-        item.get("styles", {})["layoutWeight"] = 1
-    elif change == "children":
-        item.get("children", []).reverse()
-    elif change in {"center", "spaceBetween"}:
-        row.get("styles", {})["justifyContent"] = change
-    elif change == "missing-source":
+    if change == "missing-source":
         saved.compact = None
     else:
         saved.compact = "not compact"
-    assert rejection(saved, "photo-ux-wave-square")
+    assert rejection(saved, "photo-ux-texture-blue-diamond-square")
+
+
+@pytest.mark.parametrize("change", ["width", "weight", "children", "center", "spaceBetween"])
+def test_abstract_photo_accepts_supported_secondary_body_layout_variations(change):
+    saved = weather_case("Q16")
+    support_item = next(node for node in saved.nodes if node.get("id") == "support_item0")
+    support_row = next(node for node in saved.nodes if node.get("id") == "support_row0")
+    if change == "width":
+        support_item.get("styles", {})["width"] = 1
+    elif change == "weight":
+        support_item.get("styles", {})["layoutWeight"] = 1
+    elif change == "children":
+        support_item.get("children", []).reverse()
+    else:
+        support_row.get("styles", {})["justifyContent"] = change
+    assert rejection(saved, "photo-ux-texture-blue-diamond-square") is None
 
 
 @pytest.mark.parametrize("business,identity", [

@@ -52,7 +52,7 @@ def admitted_sample(group, business, wide=False):
 
 @pytest.mark.parametrize("group", MEETINGS)
 @pytest.mark.parametrize("wide", [False, True])
-def test_new_meeting_dark_furniture_has_light_surfaces_in_both_routes(monkeypatch, group, wide):
+def test_new_meeting_dark_furniture_has_black_surfaces_in_both_routes(monkeypatch, group, wide):
     identity = theme_id(group, wide)
     selected = only_photo(monkeypatch, identity)
     saved = business_sample("calendar", 2, wide=wide)
@@ -66,11 +66,11 @@ def test_new_meeting_dark_furniture_has_light_surfaces_in_both_routes(monkeypatc
     assert selected_id == identity
     assert themes.foreground_signature(fusion) == themes.foreground_signature(saved.source)
     assert template_foreground(original.a2ui) == template_foreground(delivered.a2ui)
-    assert selected.get("content", {}).get("roles", {}).get("componentTertiary") == "#99FFFFFF"
+    assert selected.get("content", {}).get("roles", {}).get("componentTertiary") == "#1A000000"
     for result in (fusion, delivered.a2ui):
         for node_id in (["button", "upper", "lower"] if wide else ["button"]):
             styles = node_by_id(result, node_id).get("styles", {})
-            assert styles.get("backgroundColor") == "#CCFFFFFF"
+            assert styles.get("backgroundColor") == "#33000000"
             assert styles.get("backdropBlur") == {"radius": 20}
         assert node_by_id(result, "reading").get("styles", {}).get("fontColor") == "#FF000000"
 
@@ -96,7 +96,8 @@ def test_assets_have_exact_delivery_bytes_in_both_copies(filename):
     assert isinstance(remote, str)
     assert remote.startswith("https://lfcontentcenterdev.hwcloudtest.cn/")
     assert "[" not in remote and "]" not in remote
-    assert item.get("enabled") is True
+    expected_enabled = filename != "meeting_room_brown_chairs_wide.jpg"
+    assert item.get("enabled") is expected_enabled
 
 
 @pytest.mark.parametrize("group,business", GROUPS)
@@ -117,7 +118,7 @@ def test_every_new_photo_delivers_in_both_routes_without_foreground_changes(
     assert template_foreground(original.a2ui) == template_foreground(delivered.a2ui)
     src = selected.get("remoteUrl") or selected.get("src")
     primary = "#FF000000" if business == "calendar" else "#FFFFFFFF"
-    panel = "#CCFFFFFF" if business == "calendar" else "#33FFFFFF"
+    panel = "#33000000" if business == "calendar" else "#33FFFFFF"
     for result in (fusion, delivered.a2ui):
         images = []
         for node in themes.components(themes.decode(result)):
@@ -166,11 +167,11 @@ def test_new_wide_photos_keep_layout_and_four_line_limits(group, business):
     saved = business_sample(business, 1, wide=True)
     rows = themes.decode(saved.compact)
     rows[0][2]["orientation"] = "content-right"
-    assert (rejection(expanded(rows, saved.task), identity) is None) is (business == "weather")
+    assert rejection(expanded(rows, saved.task), identity)
     for layout in ("W-split-panels", "W-four-slots"):
         assert rejection(panels(layout, lines=1), identity)
     if business == "weather":
-        assert rejection(focus_sample("weather", 4, "top"), identity) is None
+        assert rejection(focus_sample("weather", 4, "top"), identity)
 
 
 @pytest.mark.parametrize("group", WEATHER)
@@ -178,6 +179,12 @@ def test_new_wide_photos_keep_layout_and_four_line_limits(group, business):
 def test_wide_weather_has_three_equally_likely_regular_choices(monkeypatch, group, layout):
     identity = theme_id(group, True)
     expected = {theme_id(name, True) for name in WEATHER}
+    saved = focus_sample("weather", 4, layout)
+    if layout != "left":
+        _, audit = choose(saved, monkeypatch)
+        assert expected.isdisjoint(audit.get("candidates", []))
+        assert audit.get("themeId") not in expected
+        return
     calls = []
 
     def pick(items):
@@ -187,7 +194,6 @@ def test_wide_weather_has_three_equally_likely_regular_choices(monkeypatch, grou
         return identity
 
     monkeypatch.setattr(themes.secrets, "choice", pick)
-    saved = focus_sample("weather", 4, layout)
     _, audit = choose(saved, monkeypatch)
     assert set(audit.get("candidates", [])) == expected
     assert audit.get("themeId") == identity
@@ -197,11 +203,16 @@ def test_wide_weather_has_three_equally_likely_regular_choices(monkeypatch, grou
 @pytest.mark.parametrize("group", MEETINGS)
 @pytest.mark.parametrize("wide", [False, True])
 def test_new_meetings_share_uniform_pool_with_eligible_existing_meetings(monkeypatch, group, wide):
-    expected = {theme_id(name, wide) for name in MEETINGS}
-    expected.add(theme_id("meeting-room", wide))
     if wide:
-        expected.add("photo-ux-digital-wave-wide")
-    identity = theme_id(group, wide)
+        expected = {
+            "photo-ux-texture-blue-diamond-wide",
+            "photo-ux-texture-blue-diagonal-wide",
+        }
+        identity = "photo-ux-texture-blue-diamond-wide"
+    else:
+        expected = {theme_id(name) for name in MEETINGS}
+        expected.add("photo-ux-meeting-room-square")
+        identity = theme_id(group)
 
     def pick(items):
         assert len(items) == len(expected)

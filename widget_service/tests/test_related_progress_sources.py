@@ -90,7 +90,9 @@ def test_preflight_completes_only_registered_selected_fields():
         uid="test", userQuery="水位", size="2x4", title="水位", description="水位",
         device={"romVersion": "7.0"},
         prdVer="11.7.8.354",
-        candidateDataBindings=[_binding()], candidateEventCandidates=[], candidateAssetIds=[],
+        candidateDataBindings=[_binding().model_dump()],
+        candidateEventCandidates=[],
+        candidateAssetIds=[],
     )
     result = GenerationPreflight(Registry()).run(request)
     assert result.blocking_issues == ()
