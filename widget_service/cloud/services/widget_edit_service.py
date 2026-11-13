@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import re
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -35,11 +34,13 @@ from services.single_step_edit import _load_json
 from services.source_artifact_repository import SourceArtifactError, SourceArtifactRepository
 from services.widget_edit_contract import (
     EditIntent,
+    apply_children_orders,
     apply_edit_output,
     has_layout_change,
     validate_edit_source_structure,
     validate_intent,
 )
+from services.widget_edit_output import normalize_edit_output
 from services.widget_edit_prompt import execution_prompt, intent_prompt, repair_feedback
 
 if TYPE_CHECKING:
@@ -152,8 +153,11 @@ class WidgetEditService:
             if before_model_call is not None:
                 await before_model_call(intent.targetSize)
             with trace_span("edit.execute", stage="edit.execute"):
-                if runtime_only:
-                    # 原组件树没有变更，仍须完整验证新运行配置，不能漏掉参数更新。
+                if runtime_only or intent.mode == "reorder":
+                    if intent.mode == "reorder" and not runtime_only:
+                        candidate.genui = apply_children_orders(original.genui, intent)
+                        _log_edit("reorder_applied", parentCount=len(intent.childrenOrders))
+                    # 程序处理的配置更新和重排也须完整验证，不因省去模型而豁免。
                     result = await to_thread.run_sync(
                         validate_edit_artifact, original, candidate, intent,
                     )
@@ -299,13 +303,7 @@ class WidgetEditService:
         output = client.generate(messages, _PROFILE, phase=phase, suppress_prompt_log=True)
         if inspect.isawaitable(output):
             output = await output
-        # 只识别整个响应的完整围栏；非法 JSON、重复键及合同仍由后续严格检查拒绝。
-        text = output.strip()
-        match = re.fullmatch(r"```(?:json|jsonl|genui)?[ \t]*\r?\n([\s\S]*?)\r?\n```", text, re.I)
-        if match is not None:
-            output = match.group(1).strip()
-            _log_edit("output_fence_removed", phase=phase, outputChars=len(output))
-        return output
+        return normalize_edit_output(output, phase)
 
     def _candidate(self, original: WidgetArtifact, request: GenerateWidgetCardRequest,
                    preflight: GenerationPreflightResult, policy: GenerationRoutePolicy,

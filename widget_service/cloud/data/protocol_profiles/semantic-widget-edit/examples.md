@@ -47,6 +47,19 @@ matchParent 的 Image，body 中有主文字 title 和辅助文字 subtitle。�
 Image 的图片来自 src，不能虚构 backgroundImage 再 remove，也不能仅在图片后方设置底色冒充完成。
 原卡没有渐变时不登记渐变 remove。若背景含动作、动态数据或属于业务图片，不套用本例删除。
 
+## 嵌套图片与装饰背景改为浅蓝渐变
+
+假设 root.children=[backdrop,body]，backdrop 是 Stack，children=[ornaments,photo]；
+photo 是无动作、无动态内容且宽高为 matchParent 的背景 Image，ornaments 内有静态装饰节点。
+body 含业务文字和图标。用户要求替换背景，未要求保留旧图片或装饰配色。
+意图用 layout、palette/layout 维度，backgroundTargets=[photo]，targets=[photo,ornaments]，
+linkedTargets=[backdrop]；不把待替换背景及其祖先列入 protectedTargets。
+将渐变目标登记到实际承载背景的 backdrop，并在原值存在且冲突时登记旧背景属性移除。
+执行删除 photo 及 backdrop 中对应引用；ornaments 仍在，不能删除 backdrop 或装饰子树。
+对保留的装饰仅调整获准静态配色，使其与渐变协调；检查剩余层仍会不会覆盖新背景，
+据此在意图阶段选择合适的现有承载层和必要联动，不只在最底层 root 添加渐变。
+body 的业务图片、文字、动态内容和动作保持。上述 ID 仅说明层级，不作为背景识别规则。
+
 ## 2x4 改为 2x2，保留全部指标和按钮
 
 mode=layout，targetSize=2x2，dimensions 包含 layout、必要 spacing，targets=[root]。

@@ -13,6 +13,9 @@ before 精确复制 previousGenui 原属性的存在性和类型，缺失为 {"e
 不先 remove 再 set 同一属性。路径、动态子字段和值类型遵守公共协议与 editContract。
 
 mode=layout：{"sourceDigest":"照抄输入","genui":[完整的三条标准 A2UI 消息对象]}。
+acceptedIntent.childrenOrders 登记的父容器必须采用指定的完整子引用顺序；即使该父节点
+不在 targets/linkedTargets，也仅允许该项 children 变化，不获得其它属性或子树授权。
+不能通过恢复原顺序或调整无关间距代替登记目标。reorder 模式由程序执行，不进入本阶段。
 保留 createSurface、updateDataModel、root 和 updateComponents 的其它头字段。
 节点删除仅限公共协议允许的背景 Image 及因此变空的获准纯包装，并清理父引用。
 只可新增 Row/Column/Stack 组织容器；原 Row/Column/Stack 可在授权范围内转换方向与层级，
@@ -27,6 +30,9 @@ mode=layout：{"sourceDigest":"照抄输入","genui":[完整的三条标准 A2UI
 新规格仍保留全部原业务信息和动作；不得用省略号、滚动、透明、零尺寸或不可达节点隐藏必要内容。
 使用 editContract 的合法值与 protocol 说明。原卡保留兼容属性不代表可以新增或修改同类属性。
 提交前自查：目标全部完成、无关内容稳定、引用闭合、样式合法、配色清晰，且没有伪造真机验证。
+背景替换还需沿组件层级检查：计划移除的背景图片及父引用是否已清理，新底色或渐变是否仍被
+旧图片、渐变或装饰层覆盖。仅设置底层属性不代表可见背景已替换；只在 acceptedIntent 授权内
+处理冲突，保留业务图片和用户明确保护的区域，不为通过自查擅自扩权或删除其它装饰节点。
 
 执行阶段只消费 acceptedIntent.allowPartial，不重新判断或输出该字段，也不修改已接受的目标和保护范围。
 无论是否允许部分交付，仍尽量完成全部目标；是否保留候选、修复或部分交付由程序决定。
