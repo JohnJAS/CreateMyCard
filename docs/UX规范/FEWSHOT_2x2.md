@@ -1,10 +1,10 @@
 # 2x2 Few-shot
 
-配套规范：[通用卡片 UX 规范](UX-SPEC.md)。本文件保持“示例说明 → user → assistant”格式，先列既有能力型路线的 19 个案例，再列静态开域维护库的 7 个案例，不使用旧单步走的自由基础组件案例。
+配套规范：[通用卡片 UX 规范](UX-SPEC.md)。本文件保持“示例说明 → user → assistant”格式，先列既有能力型路线的 19 个案例，再列静态开域维护库的 6 个案例。
 
-**校对版本：2026-10-29，main `9154c93e6d9041bdf9824ef7ee05992b11368c63`。** 既有能力型维护源：[`prompt_source/fewshots/2x2.md`](https://github.com/InnovationTea/CreateMyCard/blob/9154c93e6d9041bdf9824ef7ee05992b11368c63/widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/fewshots/2x2.md)，共 19 例，其正文与此前 `56c3e782` 快照一致；静态维护源：[`prompt_source/static_content/fewshots_2x2.md`](https://github.com/InnovationTea/CreateMyCard/blob/9154c93e6d9041bdf9824ef7ee05992b11368c63/widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/static_content/fewshots_2x2.md)，共 7 例。案例 ID 保留各库编号，不按本文件顺序重新编号。
+**校对版本：2026-11-13，main `5cf3aa719737fad1d3334334b1225fab4b9be50e`。** 既有能力型维护源为 [fewshots/2x2.md](../../widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/fewshots/2x2.md)，共 19 例。静态维护源为 [static_content/fewshots/2x2.md](../../widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/static_content/fewshots/2x2.md)，共 6 例。案例保留维护源编号。
 
-**选库与准入：** 运行时先按本请求的内容策略选库，再按尺寸和 few-shot selection 开关注入；不是把本附件两套案例一起发送给模型。当前普通纯静态创建要求原始数据／事件候选及有效动态绑定／动作均为空，编辑和带动作请求不因静态库案例而改变准入。附件只是维护源快照，不是运行时读取入口；静态库中的动作兼容结构示范在对应例中另行标明。
+**选库与准入：** 运行时先按本请求的内容策略选库，再按尺寸和 few-shot selection 开关注入。普通纯静态创建要求原始数据／事件候选及有效动态绑定／动作均为空。附件记录维护源示例，运行时读取提示词源文件。
 
 以下案例仅用于参考信息关系、组件组合和布局表达；当前 TaskSpec、已接受 Plan、组件与布局合同优先。不得复制本轮输入没有的事实、路径、事件、素材或样例数据，不为贴合案例删减、补造或静态化信息。静态范围选择、忠实摘要和受控省略按主规范单独验收，源案例存在不代表完整履约。
 
@@ -307,7 +307,7 @@ root 双轴居中且只包含一个全宽 `DataDisplay`；组件以静态“当�
 ```
 
 ## 示例十六（2x2-V03）：耳机盒电量与双入口（`S-content-dual-action`）
-紧凑信息区固定 38vp，两个CardButton各占36vp，三个区域之间分别保留 8vp，满足 `38 + 8 + 36 + 8 + 36 = 126vp`。电量与充电状态是两项需要逐项查看的等权信息，使用两行 `TableText`，不把两个 `SecondaryBody` 与按钮组成无核心信息区；不生成标题组件、独立大数字区或标题图标。示例的两个入口均由用户明确要求，不能因候选存在而自动增加按钮。
+紧凑信息区固定 38vp，两个PillButton各占36vp，三个区域之间分别保留 8vp，满足 `38 + 8 + 36 + 8 + 36 = 126vp`。电量与充电状态是两项需要逐项查看的等权信息，使用两行 `TableText`，不把两个 `SecondaryBody` 与按钮组成无核心信息区；不生成标题组件、独立大数字区或标题图标。示例的两个入口均由用户明确要求，不能因候选存在而自动增加按钮。
 ### user
 ```json
 {"userQuery":"显示耳机盒电量和充电状态，并提供每日歌单和收藏歌单两个入口。","size":"2x2","eventCandidates":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}},{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}],"dataModelSchema":{"data":{"earphone":{"batteryLevel":{"type":"integer","description":"耳机盒电量百分比0到100，展示时追加%","sampleValue":80},"chargingStatusDesc":{"type":"string","description":"充电状态","sampleValue":"未充电"}}}},"assetCandidates":[{"src":"resources/base/media/music_fill.svg","description":"每日歌单音乐图标"},{"src":"resources/base/media/heart_fill.svg","description":"收藏歌单心形图标"}]}
@@ -316,8 +316,8 @@ root 双轴居中且只包含一个全宽 `DataDisplay`；组件以静态“当�
 ```genui
 ["root","Layout",{"layout":"S-content-dual-action","linearGradient":{"direction":"RightBottom","colors":[["#FFDBCCFF",0],["#FFF6F2FF",1]]}},["battery_summary","cta_play","cta_fav"]]
 ["battery_summary","TableText",{"items":[{"label":"耳机盒","value":"{{ ${/data/earphone/batteryLevel} + '%' }}"},{"label":"状态","value":{"path":"/data/earphone/chargingStatusDesc"}}],"fontSize":12}]
-["cta_play","CardButton",{"label":"每日歌单","icon":"resources/base/media/music_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}]}]
-["cta_fav","CardButton",{"label":"收藏歌单","icon":"resources/base/media/heart_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}]}]
+["cta_play","PillButton",{"label":"每日歌单","icon":"resources/base/media/music_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}]}]
+["cta_fav","PillButton",{"label":"收藏歌单","icon":"resources/base/media/heart_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}]}]
 ["/data/earphone/batteryLevel",80]
 ["/data/earphone/chargingStatusDesc","未充电"]
 ```
@@ -338,9 +338,9 @@ root 双轴居中且只包含一个全宽 `DataDisplay`；组件以静态“当�
 ["favorite","CardButton",{"label":"收藏歌单","icon":"resources/base/media/heart_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}]}]
 ```
 
-## 示例十八（2x2-V18）：单一读数与双卡片按钮（`S-content-dual-action`）
+## 示例十八（2x2-V18）：单一读数与双胶囊按钮（`S-content-dual-action`）
 
-正文只有耳机盒电量这一项；使用EmphasizedData，数值与百分比单位分别表达，在38vp内容预算内承载。两个CardButton各36vp、间距8vp；不改回PillButton，不把动态读数静态写进label。与V03的两项属性不同，本例没有额外补充，不为填满正文增加状态。
+正文只有耳机盒电量这一项；使用EmphasizedData，数值与百分比单位分别表达，在38vp内容预算内承载。两个PillButton各36vp、间距8vp；不改用CardButton，不把动态读数静态写进label。与V03的两项属性不同，本例没有额外补充，不为填满正文增加状态。
 
 ### user
 ```json
@@ -351,8 +351,8 @@ root 双轴居中且只包含一个全宽 `DataDisplay`；组件以静态“当�
 ```genui
 ["root","Layout",{"layout":"S-content-dual-action","linearGradient":{"direction":"RightBottom","colors":[["#FFCBDDFE",0],["#FFF1F6FE",1]]}},["summary","daily","favorite"]]
 ["summary","EmphasizedData",{"value":{"path":"/data/earphone/batteryLevel"},"unit":"%","fontSize":30}]
-["daily","CardButton",{"label":"每日歌单","icon":"resources/base/media/music_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}]}]
-["favorite","CardButton",{"label":"收藏歌单","icon":"resources/base/media/heart_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}]}]
+["daily","PillButton",{"label":"每日歌单","icon":"resources/base/media/music_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}]}]
+["favorite","PillButton",{"label":"收藏歌单","icon":"resources/base/media/heart_fill.svg","onClick":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=favoriteSong&type=412"}}]}]
 ["/data/earphone/batteryLevel",80]
 ```
 
@@ -375,121 +375,101 @@ root 纵向放置两个等权 `InfoBlock`，间距为 8vp。每个信息块的 `
 ["/data/beijing/current/condition","晴"]
 ```
 
-## 静态示例一（2x2-V91）：演出信息
-
-ContentBlock 承载活动名称、时间和地点。
+## 静态示例一（2x2-V91）
 
 ### user
+
 ```json
-{"userQuery":"制作示例演出卡：周末音乐分享会，预计周六19:30，示例剧场。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+{"userQuery":"制作演出卡：周末音乐分享会，预计周六19:30，中心剧场。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
-["root","Layout",{"layout":"S-static-content"},["body"]]
-["body","ContentBlock",{"title":"周末音乐分享会","body":"预计周六19:30","attributes":[{"label":"地点","value":"示例剧场"}]}]
+["root","Layout",{"layout":"S-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"周末音乐分享会"}]
+["body","EmphasisText",{"mainText":"预计周六19:30","secondaryText":"地点 中心剧场"}]
 ["/state/ready",true]
 ```
 
-## 静态示例二（2x2-V92）：出发备忘
-
-ContentBlock 承载短备忘，标题与正文分层。
+## 静态示例二（2x2-V92）
 
 ### user
-```json
-{"userQuery":"制作备忘：出发前检查，证件和充电器随身携带。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
 
-### assistant
-```genui
-["root","Layout",{"layout":"S-static-content"},["body"]]
-["body","ContentBlock",{"title":"出发前检查","body":"证件和充电器随身携带"}]
-["/state/ready",true]
-```
-
-## 静态示例三（2x2-V93）：两条行程
-
-RecordList 按输入顺序展示两条记录，名称与补充信息分别承载。
-
-**校对注：** 原维护源输出未单独显示输入中的 Day1／Day2 标签，本附件保留该源块；顺序一致不等于所有请求文字均已展示，不能将该案例作为完整履约或真机验收证明。
-
-### user
 ```json
 {"userQuery":"展示两项行程：Day1游览示例公园，建议2小时，免费；Day2参观示例展馆，建议1小时，20元。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
+```genui
+["root","Layout",{"layout":"S-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"两项行程"}]
+["body","TextList",{"items":[{"primaryText":"示例公园","secondaryText":"建议2小时 · 免费"},{"primaryText":"示例展馆","secondaryText":"建议1小时 · 20元"}]}]
+["/state/ready",true]
+```
+
+## 静态示例三（2x2-V93）
+
+### user
+
+```json
+{"userQuery":"展示通勤参考：地铁42分钟，最稳；驾车平峰28分钟。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"S-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"通勤参考"}]
+["body","TextList",{"items":[{"primaryText":"地铁","secondaryText":"最稳","value":"42分钟"},{"primaryText":"驾车","secondaryText":"平峰","value":"28分钟"}]}]
+["/state/ready",true]
+```
+
+## 静态示例四（2x2-V94）
+
+### user
+
+```json
+{"userQuery":"生成一张卡片，展示我常坐地铁线路每天的首末班车时间：1号线苹果园方向最早5:09、最末22:42；八通线四惠东方向最早5:14、最末22:55；10号线内环最早5:17、最末23:07。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
 ```genui
 ["root","Layout",{"layout":"S-static-content"},["body"]]
-["body","RecordList",{"items":[{"title":"示例公园","description":"建议2小时 · 免费"},{"title":"示例展馆","description":"建议1小时 · 20元"}],"variant":"plain"}]
+["body","TextList",{"items":[{"primaryText":"1号线","secondaryText":"5:09–22:42"},{"primaryText":"八通线","secondaryText":"5:14–22:55"},{"primaryText":"10号线内环","secondaryText":"5:17–23:07"}]}]
 ["/state/ready",true]
 ```
 
-## 静态示例四（2x2-V94）：背板记录
-
-RecordList 使用 panel 变体展示两条短记录。
+## 静态示例五（2x2-V95）
 
 ### user
+
 ```json
-{"userQuery":"展示活动：阅读分享会，周六；摄影交流会，周日。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+{"userQuery":"生成一张静态卡片，展示上海最新成品油零售价：92号汽油7.32元/升，95号汽油7.80元/升，0号柴油6.95元/升，调价时间为2026年10月10日24时。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
 ["root","Layout",{"layout":"S-static-content"},["body"]]
-["body","RecordList",{"items":[{"title":"阅读分享会","description":"周六"},{"title":"摄影交流会","description":"周日"}],"variant":"panel"}]
+["body","TextList",{"items":[{"primaryText":"92号汽油","secondaryText":"7.32元/升"},{"primaryText":"95号汽油","secondaryText":"7.80元/升"},{"primaryText":"0号柴油","secondaryText":"6.95元/升"}]}]
 ["/state/ready",true]
 ```
 
-## 静态示例五（2x2-V95）：三项短备忘
-
-RecordList 使用 plain 变体承载三项短记录；三项并非所有内容都能放入的保证。
+## 静态示例六（2x2-V96）
 
 ### user
+
 ```json
-{"userQuery":"完整备忘三项：带证件、带雨伞、带充电器。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+{"userQuery":"制作一张今日订单状态卡：图书配送中，预计14:30送达；咖啡已完成，取餐时间10:15；鲜花等待配送，预计18:00送达。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
 ["root","Layout",{"layout":"S-static-content"},["body"]]
-["body","RecordList",{"items":[{"title":"带证件"},{"title":"带雨伞"},{"title":"带充电器"}],"variant":"plain"}]
-["/state/ready",true]
-```
-
-## 静态示例六（2x2-V96）：静态内容与单动作兼容结构
-
-本例保留静态合同中 ContentBlock 与 PillButton 的组合。
-
-**准入说明：** 2x2-V96 是已登记的动作兼容结构示范。当前普通创建只要携带事件候选仍走既有能力型路线，不因本例而自动进入静态内容策略，也不授权伪造动作候选。
-
-### user
-```json
-{"userQuery":"出发备忘：带证件，并提供打开日历按钮。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[{"id":"event.open.calendar","call":"clickToDeeplink","args":{"uri":"hww://calendar"}}],"assetCandidates":[]}
-```
-
-### assistant
-```genui
-["root","Layout",{"layout":"S-title-content-action"},["title","content","action"]]
-["title","SingleLineTitle",{"title":"出发备忘","fontSize":12}]
-["content","ContentBlock",{"body":"带证件"}]
-["action","PillButton",{"label":"打开日历","onClick":[{"call":"clickToDeeplink","args":{"uri":"hww://calendar"}}]}]
-["/state/ready",true]
-```
-
-## 静态示例七（2x2-V97）：主体与共同来源说明
-
-ContentBlock 承载主体事实，SecondaryBody 单独承载共同来源说明。
-
-### user
-```json
-{"userQuery":"上海博物馆自2008年3月10日起向社会免费开放。来源：维基百科。","size":"2x2","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
-
-### assistant
-```genui
-["root","Layout",{"layout":"S-static-content"},["body","note"]]
-["body","ContentBlock",{"title":"上海博物馆","body":"自2008年3月10日起向社会免费开放"}]
-["note","SecondaryBody",{"items":[{"value":"来源：维基百科","maxLines":2}],"columns":1,"fontSize":12}]
+["body","TextList",{"items":[{"primaryText":"图书","secondaryText":"配送中","value":"14:30"},{"primaryText":"咖啡","secondaryText":"已完成","value":"10:15"},{"primaryText":"鲜花","secondaryText":"待配送","value":"18:00"}]}]
 ["/state/ready",true]
 ```

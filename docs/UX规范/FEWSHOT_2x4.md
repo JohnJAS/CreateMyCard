@@ -1,10 +1,10 @@
 # 2x4 Few-shot
 
-配套规范：[通用卡片 UX 规范](UX-SPEC.md)。本文件保持“示例说明 → user → assistant”格式，先列既有能力型路线的 11 个案例，再列静态开域维护库的 8 个案例，不使用旧单步走的自由基础组件案例。
+配套规范：[通用卡片 UX 规范](UX-SPEC.md)。本文件保持“示例说明 → user → assistant”格式，先列既有能力型路线的 11 个案例，再列静态开域维护库的 11 个案例。
 
-**校对版本：2026-10-29，main `9154c93e6d9041bdf9824ef7ee05992b11368c63`。** 既有能力型维护源：[`prompt_source/fewshots/2x4.md`](https://github.com/InnovationTea/CreateMyCard/blob/9154c93e6d9041bdf9824ef7ee05992b11368c63/widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/fewshots/2x4.md)，共 11 例，其正文与此前 `56c3e782` 快照一致；静态维护源：[`prompt_source/static_content/fewshots_2x4.md`](https://github.com/InnovationTea/CreateMyCard/blob/9154c93e6d9041bdf9824ef7ee05992b11368c63/widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/static_content/fewshots_2x4.md)，共 8 例。案例 ID 保留各库编号，不按本文件顺序重新编号。
+**校对版本：2026-11-13，main `5cf3aa719737fad1d3334334b1225fab4b9be50e`。** 既有能力型维护源为 [fewshots/2x4.md](../../widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/fewshots/2x4.md)，共 11 例。静态维护源为 [static_content/fewshots/2x4.md](../../widget_service/cloud/data/protocol_profiles/design-compact-dsl-fusion/prompt_source/static_content/fewshots/2x4.md)，共 11 例。案例保留维护源编号。
 
-**选库与准入：** 运行时先按本请求的内容策略选库，再按尺寸和 few-shot selection 开关注入；不是把本附件两套案例一起发送给模型。当前普通纯静态创建要求原始数据／事件候选及有效动态绑定／动作均为空，编辑和带动作请求不因静态库案例而改变准入。附件只是维护源快照，不是运行时读取入口；静态库中的动作兼容结构示范在对应例中另行标明。
+**选库与准入：** 运行时先按本请求的内容策略选库，再按尺寸和 few-shot selection 开关注入。普通纯静态创建要求原始数据／事件候选及有效动态绑定／动作均为空。附件记录维护源示例，运行时读取提示词源文件。
 
 以下案例仅用于参考信息关系、组件组合和布局表达；当前 TaskSpec、已接受 Plan、组件与布局合同优先。不得复制本轮输入没有的事实、路径、事件、素材或样例数据，不为贴合案例删减、补造或静态化信息。静态范围选择、忠实摘要和受控省略按主规范单独验收，源案例存在不代表完整履约。
 
@@ -267,140 +267,186 @@ SummaryList进入details并由Runtime贴底。组件只提交items，不输出�
 ["/data/devices/camera/state","未连接"]
 ```
 
-## 静态示例一（2x4-V91）：开放安排与属性
-
-ContentBlock 分别承载标题、开放时间和短属性。
+## 静态示例一（2x4-V91）
 
 ### user
+
 ```json
-{"userQuery":"示例剧场周末开放安排：周六09:00–17:00，最晚16:30入场，请携带有效证件。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+{"userQuery":"生成一张静态卡片，展示上海博物馆的参观信息：上海博物馆自2008年3月10日起向社会免费开放。来源：维基百科上海博物馆条目，检索日期2026年9月21日。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
-["root","Layout",{"layout":"W-static-content"},["body"]]
-["body","ContentBlock",{"title":"示例剧场周末开放安排","body":"周六09:00–17:00","attributes":[{"label":"最晚入场","value":"16:30"},{"label":"须知","value":"请携带有效证件"}]}]
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"上海博物馆"}]
+["body","EmphasisText",{"mainText":"2008年3月10日起免费开放","secondaryText":"来源：维基百科上海博物馆条目","bottomText":"检索日期2026年9月21日"}]
 ["/state/ready",true]
 ```
 
-## 静态示例二（2x4-V92）：行程的侧边信息
-
-RecordList 使用 leading／trailing 承载短标签和短价格，主体保留名称及说明。
+## 静态示例二（2x4-V96）
 
 ### user
-```json
-{"userQuery":"周末行程：Day1示例公园，建议2小时，免费；Day2示例展馆，建议1小时，20元。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
 
-### assistant
-```genui
-["root","Layout",{"layout":"W-static-content"},["body"]]
-["body","RecordList",{"items":[{"leading":"Day1","title":"示例公园","description":"建议2小时","trailing":"免费"},{"leading":"Day2","title":"示例展馆","description":"建议1小时","trailing":"20元"}],"variant":"plain"}]
-["/state/ready",true]
-```
-
-## 静态示例三（2x4-V93）：三条演出记录
-
-RecordList 按原顺序展示三条演出记录；名称、地点与日期分别承载。
-
-### user
-```json
-{"userQuery":"展示三场演出：示例乐队，示例剧场，周五；示例合唱，示例礼堂，周六；示例独奏，示例音乐厅，周日。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
-
-### assistant
-```genui
-["root","Layout",{"layout":"W-static-content"},["body"]]
-["body","RecordList",{"items":[{"title":"示例乐队","description":"示例剧场","trailing":"周五"},{"title":"示例合唱","description":"示例礼堂","trailing":"周六"},{"title":"示例独奏","description":"示例音乐厅","trailing":"周日"}],"variant":"plain"}]
-["/state/ready",true]
-```
-
-## 静态示例四（2x4-V94）：两方案比较
-
-ComparisonGroup 对比两个同级方案，价格含单位，名称和补充信息分层。
-
-### user
-```json
-{"userQuery":"对比方案：甲方案128元/月，含30GB；乙方案159元/月，含60GB。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
-
-### assistant
-```genui
-["root","Layout",{"layout":"W-static-content"},["body"]]
-["body","ComparisonGroup",{"items":[{"primaryText":"128元/月","secondaryText":"甲方案","details":["30GB"]},{"primaryText":"159元/月","secondaryText":"乙方案","details":["60GB"]}]}]
-["/state/ready",true]
-```
-
-## 静态示例五（2x4-V95）：三方案与共同说明
-
-ComparisonGroup 承载三个短方案，SecondaryBody 承载共同说明。
-
-### user
-```json
-{"userQuery":"横向对比：甲128元/月，乙159元/月，丙199元/月；价格仅供本次参考。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
-```
-
-### assistant
-```genui
-["root","Layout",{"layout":"W-static-content"},["body","note"]]
-["body","ComparisonGroup",{"items":[{"primaryText":"128元/月","secondaryText":"甲"},{"primaryText":"159元/月","secondaryText":"乙"},{"primaryText":"199元/月","secondaryText":"丙"}]}]
-["note","SecondaryBody",{"items":[{"value":"价格仅供本次参考","maxLines":2}],"columns":1,"fontSize":12}]
-["/state/ready",true]
-```
-
-## 静态示例六（2x4-V96）：标题与贴底主体
-
-W-static-content 使用 bottom-content 变体，保留标题与独立主体。
-
-### user
 ```json
 {"userQuery":"阅读计划：读完示例书第一章，记录三个问题。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
-["root","Layout",{"layout":"W-static-content","variant":"bottom-content"},["header","body"]]
-["header","SingleLineTitle",{"title":"阅读计划","fontSize":12}]
-["body","ContentBlock",{"title":"示例书第一章","body":"记录三个问题"}]
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"阅读计划"}]
+["body","EmphasisText",{"mainText":"记录三个问题","secondaryText":"读完示例书第一章"}]
 ["/state/ready",true]
 ```
 
-## 静态示例七（2x4-V97）：静态双区与动作兼容结构
-
-本例保留静态合同中左右 Region、ContentBlock 与 PillButton 的组合。
-
-**准入说明：** 2x4-V97 是已登记的动作兼容结构示范。当前普通创建只要携带事件候选仍走既有能力型路线，不因本例而自动进入静态内容策略，也不授权伪造动作候选。
+## 静态示例三（2x4-V92）
 
 ### user
+
 ```json
-{"userQuery":"出发备忘分两组：随身带证件，背包带雨伞；提供打开日历按钮。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[{"id":"event.open.calendar","call":"clickToDeeplink","args":{"uri":"hww://calendar"}}],"assetCandidates":[]}
+{"userQuery":"杭州行程安排：Day1，灵隐寺祈福、知竹素菜馆午餐，09:00–11:30；Day2，小河直街、胜利河美食街午餐、拱宸桥，13:30–16:30。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
-["root","Layout",{"layout":"W-split-panels"},["left","right"]]
-["left","Region",{"variant":"title-content-action"},["title","content","action"]]
-["title","SingleLineTitle",{"title":"随身","fontSize":12}]
-["content","ContentBlock",{"body":"带证件"}]
-["action","PillButton",{"label":"打开日历","onClick":[{"call":"clickToDeeplink","args":{"uri":"hww://calendar"}}]}]
-["right","Region",{"variant":"title-content"},["right_title","right_content"]]
-["right_title","SingleLineTitle",{"title":"背包","fontSize":12}]
-["right_content","ContentBlock",{"body":"带雨伞"}]
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"杭州行程安排"}]
+["body","TextList",{"items":[{"primaryText":"Day1","secondaryText":"灵隐寺祈福、知竹素菜馆午餐","value":"09:00–11:30"},{"primaryText":"Day2","secondaryText":"小河直街、胜利河美食街午餐、拱宸桥","value":"13:30–16:30"}]}]
 ["/state/ready",true]
 ```
 
-## 静态示例八（2x4-V98）：四项短属性表
-
-ContentBlock 使用四项标签—值属性；属性表的条数合同不同于 RecordList 的记录条数，仍须检查实际文字和整卡容量。
+## 静态示例四（2x4-V93）
 
 ### user
+
+```json
+{"userQuery":"展示三场演出：李荣浩黑马巡回演唱会上海站，上海体育场，9月25–26日；潘玮柏MAD LOVE ULTRA巡回演唱会，上海虹口足球场，9月19日；谢霆锋进化演唱会，杭州奥体中心体育场，11月14–15日。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["body"]]
+["body","TextList",{"items":[{"primaryText":"李荣浩黑马巡回演唱会上海站","secondaryText":"上海体育场","value":"9月25–26日"},{"primaryText":"潘玮柏MAD LOVE ULTRA巡回演唱会","secondaryText":"上海虹口足球场","value":"9月19日"},{"primaryText":"谢霆锋进化演唱会","secondaryText":"杭州奥体中心体育场","value":"11月14–15日"}]}]
+["/state/ready",true]
+```
+
+## 静态示例五（2x4-V97）
+
+### user
+
+```json
+{"userQuery":"今日科技新闻：Block发布Dessa语音模型，本地运行、能笑会哭且支持全双工；DeepSeek布局具身智能投资，宇树、Winverse等团队。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"今日科技新闻"}]
+["body","TextList",{"items":[{"primaryText":"Block发布Dessa语音模型","secondaryText":"本地运行、能笑会哭且支持全双工"},{"primaryText":"DeepSeek布局具身智能投资","secondaryText":"宇树、Winverse等团队"}]}]
+["/state/ready",true]
+```
+
+## 静态示例六（2x4-V100）
+
+### user
+
+```json
+{"userQuery":"生成一张静态卡片，展示脂肪肝人群常见生活方式建议：每周至少150分钟中等强度有氧运动并配合每周2次抗阻训练，每日能量缺口控制在300至500千卡，戒酒且精制糖每日不超过25克，每3至6个月复查肝功能与肝脏超声。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["body"]]
+["body","TextList",{"items":[{"primaryText":"脂肪肝 · 运动","secondaryText":"中等强度有氧≥150分钟/周，抗阻2次/周"},{"primaryText":"饮食","secondaryText":"缺口300–500千卡/日，戒酒，糖≤25克/日"},{"primaryText":"复查","secondaryText":"每3–6个月查肝功能、肝脏超声"}]}]
+["/state/ready",true]
+```
+
+## 静态示例七（2x4-V101）
+
+### user
+
+```json
+{"userQuery":"生成一张静态卡片，展示附近小区的房价：中海寰宇时代58600元/㎡，环比下跌1.2%；天通苑北一区41200元/㎡，环比持平；融泽嘉园46800元/㎡，近30天成交6套。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["body"]]
+["body","TextList",{"items":[{"primaryText":"中海寰宇时代","secondaryText":"环比下跌1.2%","value":"58600元/㎡"},{"primaryText":"天通苑北一区","secondaryText":"环比持平","value":"41200元/㎡"},{"primaryText":"融泽嘉园","secondaryText":"近30天成交6套","value":"46800元/㎡"}]}]
+["/state/ready",true]
+```
+
+## 静态示例八（2x4-V94）
+
+### user
+
+```json
+{"userQuery":"对比方案：甲方案128元/月，含30GB；乙方案159元/月，含60GB。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"方案对比"}]
+["body","ComparisonGroup",{"items":[{"primaryText":"128元/月","secondaryText":"甲方案","details":["30GB"]},{"primaryText":"159元/月","secondaryText":"乙方案","details":["60GB"]}]}]
+["/state/ready",true]
+```
+
+## 静态示例九（2x4-V95）
+
+### user
+
+```json
+{"userQuery":"横向对比：甲128元/月，乙159元/月，丙199元/月；价格仅供本次参考。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"价格仅供本次参考"}]
+["body","ComparisonGroup",{"items":[{"primaryText":"128元/月","secondaryText":"甲"},{"primaryText":"159元/月","secondaryText":"乙"},{"primaryText":"199元/月","secondaryText":"丙"}]}]
+["/state/ready",true]
+```
+
+## 静态示例十（2x4-V99）
+
+### user
+
+```json
+{"userQuery":"四种套餐对比：甲方案128元/月，含30GB；乙方案159元/月，含60GB；丙方案199元/月，含100GB；丁方案239元/月，含150GB。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
+```
+
+### assistant
+
+```genui
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"四种套餐对比"}]
+["body","SingleLineList",{"items":[{"text":"甲方案","assist":"128元/月 · 30GB"},{"text":"乙方案","assist":"159元/月 · 60GB"},{"text":"丙方案","assist":"199元/月 · 100GB"},{"text":"丁方案","assist":"239元/月 · 150GB"}]}]
+["/state/ready",true]
+```
+
+## 静态示例十一（2x4-V98）
+
+### user
+
 ```json
 {"userQuery":"公积金贷款利率表：首套5年以上2.85%，首套5年以下含5年2.35%，二套5年以上3.325%，二套5年以下含5年2.775%。","size":"2x4","dataModelSchema":{"data":{}},"eventCandidates":[],"assetCandidates":[]}
 ```
 
 ### assistant
+
 ```genui
-["root","Layout",{"layout":"W-static-content"},["body"]]
-["body","ContentBlock",{"title":"公积金贷款利率表","attributes":[{"label":"首套5年以上","value":"2.85%"},{"label":"首套5年以下含5年","value":"2.35%"},{"label":"二套5年以上","value":"3.325%"},{"label":"二套5年以下含5年","value":"2.775%"}]}]
+["root","Layout",{"layout":"W-static-content"},["header","body"]]
+["header","SingleLineTitle",{"title":"公积金贷款利率表"}]
+["body","SingleLineList",{"items":[{"text":"首套5年以上","assist":"2.85%"},{"text":"首套5年以下含5年","assist":"2.35%"},{"text":"二套5年以上","assist":"3.325%"},{"text":"二套5年以下含5年","assist":"2.775%"}]}]
 ["/state/ready",true]
 ```
