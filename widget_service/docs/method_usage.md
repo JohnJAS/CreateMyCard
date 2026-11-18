@@ -31,7 +31,7 @@ curl http://127.0.0.1:8855/health
 
 ## 2. 目录和版本规则
 
-能力清单由 `cloud/data/capabilities/registry_ranges.json` 统一维护 App/ROM 二维左闭右开区间，目录只作为实际注册表版本：
+能力清单由 `cloud/data/capabilities/registry_ranges.json` 维护 App/ROM 区间，目录名标识快照。
 
 ```text
 cloud/data/capabilities/{capabilityRegistryVersion}/
@@ -43,22 +43,23 @@ cloud/data/capabilities/{capabilityRegistryVersion}/
 当前能力清单及命中区间：
 
 ```text
-App [11.7.7.330, 12.0.0.0) + ROM [6.0, 8.0) -> app-11.7.7.300_rom-7.0
+App [11.7.7.330, 11.7.9.300) + ROM [6.0, 8.0) -> app-11.7.7.300_rom-7.0
+App [11.7.9.300, 12.0.0.0)   + ROM [6.0, 8.0) -> app-11.7.9.300_rom-7.0
 ```
 
-App 使用完整数字版本，ROM 从完整 `romVersion` 中抽取主次版本。索引加载时会拒绝倒置区间、App 与
-ROM 同时重叠的配置以及不存在的目标目录。
+App 使用完整数字版本，ROM 使用主次版本。两个区间均为左闭右开。
+索引加载时会拒绝倒置区间、可同时命中的区间以及不存在的目标目录。
 
 能力目录名是快照标识，不用于推导实际命中范围。旧 App 和其它未覆盖组合没有直接命中；
 是否使用默认清单由回退开关决定。一期能力目录已删除，模板已使用二期。
-历史一期结果编辑时，仅素材路径恢复读取二期清单；来源文件和版本元数据保持不变，
-编辑后的业务能力按本轮清单重新校验。其它未知版本不自动映射。
-部署时应移除或更新仍指定一期目录的能力版本环境变量，否则显式加载会报目录不存在。
+历史一期结果编辑时，素材路径恢复使用旧清单。编辑后的业务能力按本轮清单重新校验。
+部署时应移除或更新仍指定已移除目录的能力版本环境变量，否则显式加载会报目录不存在。
 协议 Profile 配置保持不变。
 
 五个接口在能力清单版本未命中或目标目录不可用且
 `WIDGET_SERVICE_ENABLE_DEFAULT_CAPABILITY_REGISTRY_FALLBACK=true` 时，统一回退到默认的
 `app-11.7.7.300_rom-7.0` 能力清单。arguments 参数修复也使用同一默认配置。
+旧清单使用 `GetCountdownDays`，日期计数清单使用 `GetDateCounter`。
 关闭开关时，第一、第二接口返回空清单/缺失能力，三个生成接口返回版本不支持。
 
 第一接口的 IDS 安装过滤范围由
@@ -174,8 +175,8 @@ Parser 只接受单根组件调用、字面量、白名单组件和安全对象�
 语法验证其中的上一轮模型原始输出。第五接口沿用 Design Compact 后端配置；两项后端配置都可取
 `mep` 或 `openai`。其它配置值会在启动配置校验阶段直接报错，不做自动迁移。
 
-第四接口的协议区间索引位于 `cloud/data/protocol_profiles/registry_ranges.json`，其 App/ROM 区间与能力清单
-保持一致：App `[11.7.5.205, 11.7.7.330)` 且 ROM `[7.0, 7.2)`，以及 App
+第四接口的协议区间索引位于 `cloud/data/protocol_profiles/registry_ranges.json`，其中 App
+`[11.7.5.205, 11.7.7.330)` 且 ROM `[7.0, 7.2)`，以及 App
 `[11.7.7.330, 12.0.0.0)` 且 ROM `[7.0, 8.0)`。当前两段都映射到同一套 A2UI Form Profile 和
 `design-compact-dsl`；未命中时，只有 `WIDGET_SERVICE_ENABLE_DEFAULT_PROTOCOL_PROFILE_FALLBACK=true`
 才回退到 `WIDGET_SERVICE_PROTOCOL_PROFILE_ID`。

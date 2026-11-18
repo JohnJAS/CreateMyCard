@@ -27,6 +27,7 @@ from services.card_validation.compact_validation.semantic.display import (
     _collect_action_label_length_errors,
     _collect_ambiguous_metric_text_errors,
     _collect_compound_duration_component_errors,
+    _collect_date_counter_relation_text_errors,
     _collect_progress_readout_object_errors,
     _collect_raw_boolean_text_errors,
     _collect_semantic_text_errors,
@@ -139,6 +140,18 @@ def validate_compact_dsl(
     context.data_model = data_model
     size = card_spec.get("suggestSize") or task_spec.get("size")
     layout_errors: list[str] = []
+    source_root: ComponentRow | None = None
+    for row in original_rows:
+        if isinstance(row, ComponentRow) and row.component_id == "root":
+            source_root = row
+            break
+    declared_layout = None
+    if source_root is not None and source_root.component_type == "Layout":
+        source_layout = source_root.props.get("layout")
+        if isinstance(source_layout, str):
+            declared_layout = source_layout
+    if layout_scope is None and declared_layout == "W-countdown-center":
+        layout_scope = declared_layout
     if layout_scope is not None:
         if not isinstance(size, str):
             layout_errors.append("Compact layout validation requires a valid widget size.")
@@ -150,6 +163,7 @@ def validate_compact_dsl(
                     root_action_handler=(
                         whole_card_click.handler if whole_card_click is not None else None
                     ),
+                    declared_layout=declared_layout,
                 )
             except CompactLayoutRuntimeError as exc:
                 layout_errors.append(str(exc))
@@ -199,6 +213,7 @@ def validate_compact_dsl(
     _collect_model_asset_source_errors(components, task_spec, original_errors)
     _collect_asset_color_errors(components, task_spec, original_errors)
     _collect_numeric_component_errors(components, task_spec, original_errors)
+    _collect_date_counter_relation_text_errors(components, card_spec, original_errors)
     if original_errors and not has_static_group_errors:
         original_errors.extend(layout_errors)
         raise _validation_error(original_errors, context, repair_context)

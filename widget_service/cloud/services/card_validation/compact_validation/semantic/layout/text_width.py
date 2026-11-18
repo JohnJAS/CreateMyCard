@@ -23,8 +23,9 @@ def _collect_text_width_budget_errors(
     include_label_pressure: bool = False,
     warnings: list[str] | None = None,
 ) -> None:
-    """兜底明确单行超宽；自然宽度只用已知祖先内宽作上界，不猜实际尺寸。"""
+    """检查明确的文字容量；自然宽度只用已知祖先内宽作上界。"""
     from services.compact_composition_context import small_card_display_text
+    from services.compact_composition_planner import _wrapped_lines
 
     size = card_spec.get("suggestSize") or task_spec.get("size")
     if size not in {"2x2", "2x4"}:
@@ -52,11 +53,13 @@ def _collect_text_width_budget_errors(
         if message not in errors:
             errors.append(message)
         return
+    _collect_numeric_readout_width_errors(components, task_spec, boxes, by_id, errors)
     for row in components:
         if row.component_type not in {"Text", "Button"}:
             continue
         props = row.props
-        if props.get("maxLines", 1) != 1:
+        is_main_title = _uses_visual_recipe_part(row, "DataDisplay.mainTitle")
+        if props.get("maxLines", 1) != 1 and not is_main_title:
             continue
         font = _non_negative_number(props.get("fontSize"))
         box = boxes.get(row.component_id)
@@ -82,9 +85,37 @@ def _collect_text_width_budget_errors(
         content = props.get("content") if row.component_type == "Text" else props.get("label")
         # 两种尺寸共用保守的完整文案解析；不运行表达式或猜测未知字段。
         text = small_card_display_text(content, task_spec)
+        countdown_number = (
+            _uses_visual_recipe_part(row, "EmphasizedData.value")
+            and props.get("fontSize") == 56
+            and props.get("height") == 56
+        )
+        if text is None and countdown_number:
+            text = small_card_display_text(content, task_spec, bounded_only=True)
         if text is None and isinstance(content, str) and "{{" not in content:
             text = content
-        if not isinstance(text, str) or not text or "\n" in text:
+        if not isinstance(text, str) or not text:
+            continue
+        countdown_date = row.component_type == "Text" and _uses_visual_recipe_part(
+            row, "SecondaryBody.root"
+        )
+        countdown_line = countdown_number or countdown_date
+        if countdown_line and ("\n" in text or "\r" in text):
+            errors.append(f"component {row.component_id}: countdown-center requires one line.")
+            continue
+        if is_main_title:
+            available = width - _horizontal_padding(props)
+            normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+            if _wrapped_lines(normalized, font, available) > 2:
+                errors.append(
+                    f"component {row.component_id}: S-center main title exceeds two lines "
+                    f"within {available:g}vp."
+                )
+            continue
+        if _uses_visual_recipe_part(row, "DataDisplay.subtitle") and ("\n" in text or "\r" in text):
+            errors.append(f"component {row.component_id}: S-center subtitle must be one line.")
+            continue
+        if "\n" in text:
             continue
         duration_error = _compound_duration_label_width_error(
             row,
@@ -221,7 +252,14 @@ def _collect_title_width_errors(
         text = small_card_display_text(component.props.get("title"), task)
         if box is None or box.width is None or font is None:
             continue
-        if not isinstance(text, str) or not text or "\n" in text:
+        if not isinstance(text, str) or not text:
+            continue
+        countdown = component.props.get("variant") == "countdown-center"
+        if "\n" in text or (countdown and "\r" in text):
+            if countdown:
+                errors.append(
+                    f"component {component.component_id}: countdown-center title requires one line."
+                )
             continue
         available = box.width - _horizontal_padding(styles)
         required = sum(font * (0.5 if char.isascii() else 1) for char in text)
@@ -230,7 +268,9 @@ def _collect_title_width_errors(
         message = _width_error(
             component.component_id, text, font, required, available, "allocated text area",
         )
-        if _has_title_only_number(component, components, task):
+        if countdown:
+            errors.append(message + " countdown-center requires a complete single-line title.")
+        elif _has_title_only_number(component, components, task):
             errors.append(
                 message + " SingleLineTitle is the only display of this numeric reading; "
                 "preserve its "
@@ -325,6 +365,54 @@ def _compound_duration_label_width_error(
         "legal two-line body text at the same font and budget its height, or regroup. "
         "Weight, clipping and dropping units do not close this text budget."
     )
+
+
+def _collect_numeric_readout_width_errors(
+    components: list[ComponentRow],
+    task: dict[str, Any],
+    boxes: dict,
+    by_id: dict[str, ComponentRow],
+    errors: list[str],
+) -> None:
+    """新数值Row核算数字和单位总宽，复用已知显示值及规划文字压力算法。"""
+    from services.compact_composition_context import small_card_display_text
+    from services.compact_composition_planner import _text_width
+
+    for row in components:
+        countdown = _uses_visual_recipe_part(row, "EmphasizedData.countdownRow")
+        if not countdown and not _uses_visual_recipe_part(row, "DataDisplay.valueRow"):
+            continue
+        box = boxes.get(row.component_id)
+        if box is None or box.width is None:
+            continue
+        required = 0.0
+        complete = True
+        for child_id in row.children:
+            child = by_id.get(child_id)
+            if child is None:
+                complete = False
+                break
+            content = child.props.get("content")
+            text = small_card_display_text(content, task)
+            if text is None:
+                text = small_card_display_text(content, task, bounded_only=True)
+            font = _non_negative_number(child.props.get("fontSize"))
+            if text is None or font is None:
+                complete = False
+                break
+            required += _text_width(text, font) + _horizontal_padding(child.props)
+        if not complete:
+            continue
+        gap = _non_negative_number(row.props.get("itemMargin")) or 0.0
+        required += gap * max(0, len(row.children) - 1)
+        available = box.width - _horizontal_padding(row.props)
+        if required > available:
+            name = "countdown-center" if countdown else "DataDisplay"
+            font_pair = "56/16fp" if countdown else "46/16fp"
+            errors.append(
+                f"component {row.component_id}: numeric {name} value and unit require "
+                f"about {required:g}vp within {available:g}vp at fixed {font_pair}."
+            )
 
 
 def _horizontal_padding(props: dict[str, Any]) -> float:

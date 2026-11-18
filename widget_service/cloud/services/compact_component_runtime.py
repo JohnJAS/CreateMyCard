@@ -495,6 +495,11 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     merged = copy.deepcopy(base)
     for key, value in override.items():
         existing = merged.get(key)
+        if isinstance(value, dict) and value.get("replace") is True:
+            replacement = copy.deepcopy(value)
+            replacement.pop("replace")
+            merged[key] = replacement
+            continue
         if isinstance(existing, dict) and isinstance(value, dict):
             merged[key] = _deep_merge(existing, value)
             continue

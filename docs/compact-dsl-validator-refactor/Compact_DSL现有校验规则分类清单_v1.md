@@ -1,5 +1,12 @@
 # Compact DSL 现有校验规则分类清单 v1
 
+2026-11-13：`W-countdown-center` 根据源 DSL 声明匹配，参与 2x4 线上生成和修复的布局选型。
+三槽顺序、样式归属及无动作约束归语义／布局与视觉，复用 `compact_semantic_layout.py`、
+`compact_layout_runtime.py` 与共享组件合同。固定高度和完整单行容量继续由
+`semantic/layout/geometry.py`、`text_width.py` 检查。根容器使用 `W-countdown-center.root`
+配方标记；日期单行检查识别带 `SecondaryBody.root` 配方标记的 `Text` 节点。
+数值和单位的合计宽度由同一行容量检查负责。回归见 `test_countdown_center_layout.py`。
+
 2026-10-31：InfoBlock 与其它组件重复展示同一事实时，优先保留 InfoBlock 必填文本，
 建议从其它组件删除合同允许的重复属性或条目；无合法删除位置时沿既有范围重组。
 本项归修复建议，落点为 `compact_repair_strategy.py::_duplicate_fact_instruction` 与
@@ -262,6 +269,7 @@ warning；共享 Runtime 继续确定性展开原顺序，版本化物理布局�
 | CardButton 图标字段合法性 | 共享高阶组件合同，语法／组件 | `CardButton.icon` 可省略；存在时必须是非空静态字符串。省略业务 icon 时，转换器注入固定回退图标 `resources/base/media/ic_fallback_light.svg`，保留图标槽及对应文字宽度预算；不生成额外圆形、分隔线等占位视觉 |
 | CardButton 与 Plan 素材分配一致性 | `semantic/plan_contracts.py`，语义／跨文件一致性 | Plan 为动作分配非空素材时，DSL 继续使用该 ID 的原始 `src`；Plan 为空或没有素材候选时允许 DSL 省略业务 icon，由转换器注入固定回退图标，不得伪造业务素材或额外占位视觉 |
 | 按钮可见文案长度 | `semantic/display.py`，语义／展示，`COMPACT_DISPLAY_ACTION_LABEL_TOO_LONG` | 原始 `PillButton`、`CardButton` 的静态 `label` 最多6个非空白字符；超限只授权缩短可见文案，完整保留 `onClick`、动作目标、组件与布局；由既有 DSL 质量修复处理，不占 Plan 重试预算 |
+| 日期计数关系词 | `semantic/display.py`，语义／展示，`COMPACT_DISPLAY_DATE_COUNTER_RELATION_TEXT` | 检查 GetDateCounter 关系词的可见文本组合；修复文案由 repair_hints.json 提供 |
 | 数值组件选型 | `semantic/numeric_display.py`，语义／展示，`COMPACT_DISPLAY_NUMERIC_COMPONENT_MISUSE` | 仅原始 EmphasizedData 的确定误用；未知字符串类型、表达式、配速及占位值不一概拒绝 |
 
 2026-10-12 合入标题图标：`SingleLineTitle.icon` 纳入原始素材引用登记，继续使用上述两个素材错误码。
@@ -1484,3 +1492,28 @@ Plan 试排原有的无保护 should 省略候选保持原优先级与遗漏反�
 归入 Plan 语义／信息覆盖，与同条 `SecondaryBody` 标签和值的组合遵守相同边界。
 不跨节点、跨条目拼接，不执行动态表达式，不改写数字、单位或错误级别；无单位、数值或单位不匹配仍按原规则判断。
 回归扩展已有 `test_compact_plan.py`，同时核对原转换结果不变；不新增几何检查、诊断码或重试权限。
+
+## 2026-11-10 S-center 数值标题角色
+
+- secondaryInfo/unit字段形状与组合：语法／组件，委托compact_high_level_components.py共享展开，
+  不复制进校验器；绑定能力委托compact_component_bindings.py。
+- 44vp标题和56/16数值的宽高预算：语义／布局，复用text_width.py、horizontal.py、geometry.py；
+  text_width.py::_collect_data_display_value_width_errors仅为新数值Row累计数字和单位的总宽，
+  复用small_card_display_text和_text_width，不改变其它Row的预算或新增错误码。建议由现有修复提示词负责，重试仍归既有策略。
+- Plan角色格式与单核心路线：compact_plan.py，不迁移普通修复范围之外的历史规则。
+- 回归：widget_service/tests/test_s_center_numeric_focus.py。
+
+S-center弹性数值区的高度属于语义／布局：44vp标题、8vp间距及74vp内部行的下界，
+继续由semantic/layout/geometry.py核算，区域分配复用compact_region_layout.py，不复制新预算算法。
+回归：test_s_center_numeric_focus.py显式150/200/260参考高度及140高度不足；浏览器脚本检查实际居中。
+
+## 2026-11-12 S-center 数值版式
+
+- 主标题最多两行，副标题仍为单行，归语义／布局。实际检查位于
+  `semantic/layout/text_width.py`，按 DataDisplay 内部配方定位，复用已知显示文字、参考区域和折行估算。
+  超出两行的主标题或显式换行的副标题沿用现有容量错误路径，公共 DoubleLineTitle 合同不变。
+- 数字和单位共行宽度仍由同文件累计，按展开后的46/16fp计算。高度仍由
+  `semantic/layout/geometry.py` 和 `compact_region_layout.py` 核算，参考内容高度为60+4+62vp，
+  数值承载区最小62vp，内部数字单位行46vp。沿用通用高度容差及诊断路径。
+- 回归见 `test_s_center_numeric_focus.py` 和 `s_center_glyph_alignment.mjs`，覆盖标题单双行、
+  副标题显隐、不同参考高度及文字框对齐。

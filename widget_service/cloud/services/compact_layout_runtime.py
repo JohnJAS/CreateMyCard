@@ -56,7 +56,7 @@ def _load_contract() -> dict[str, Any]:
 
 
 def load_layout_contract() -> dict[str, Any]:
-    """Return an isolated copy of the complete layout contract."""
+    """读取布局合同，并在纯文字模式下应用对应的容量配置。"""
     result = copy.deepcopy(_load_contract())
     from services.generation_content_policy import STATIC_LAYOUTS, current_content_policy
     from services.static_text_capacity import contract_section, number
@@ -145,6 +145,7 @@ def match_compact_layout(
     size: str,
     layout_scope: str,
     root_action_handler: dict[str, Any] | None = None,
+    declared_layout: str | None = None,
 ) -> CompactLayoutMatch:
     """Match raw Compact rows to one formal layout without changing their geometry."""
     components_by_id = _reference_components(components, size=size)
@@ -157,14 +158,24 @@ def match_compact_layout(
     if not isinstance(layouts, dict):
         raise CompactLayoutRuntimeError("Compact layout contract has no layouts.")
 
+    allowed = allowed_layout_ids(size, layout_scope)
+    # 居中倒计时靠源布局标识区分布局身份，避免降级匹配成普通纵排。
+    if declared_layout == "W-countdown-center":
+        if declared_layout not in allowed:
+            raise CompactLayoutRuntimeError(
+                f"Layout {declared_layout} is not allowed in {layout_scope}."
+            )
+        allowed = (declared_layout,)
     closest: tuple[int, str, list[str]] | None = None
     closest_rank: tuple[int, int, int] | None = None
     alternatives: list[str] = []
-    for layout_id in allowed_layout_ids(size, layout_scope):
+    for layout_id in allowed:
         if root_action_handler is not None and layout_id not in WHOLE_CARD_LAYOUTS:
             continue
         layout = layouts.get(layout_id)
         if not isinstance(layout, dict):
+            continue
+        if layout_id == "W-countdown-center" and layout_id != declared_layout:
             continue
         patterns = layout.get("patterns")
         if not isinstance(patterns, list):
@@ -210,12 +221,12 @@ def match_compact_layout(
                 f"{layout_id} variant {best_variant[1]}: {'; '.join(best_variant[2])}"
             )
 
-    allowed = ", ".join(allowed_layout_ids(size, layout_scope))
+    allowed_names = ", ".join(allowed)
     detail = "layout structure does not match any registered pattern"
     if closest is not None:
         detail = f"closest {closest[1]}: {'; '.join(closest[2])}"
     raise CompactLayoutRuntimeError(
-        f"Compact layout does not match scope {layout_scope} ({allowed}): {detail}. "
+        f"Compact layout does not match scope {layout_scope} ({allowed_names}): {detail}. "
         f"Alternatives (choose one complete variant): {' | '.join(alternatives)}."
     )
 
@@ -454,14 +465,19 @@ def _component_root_styles(
     *,
     size: str,
 ) -> dict[str, Any] | None:
+    name = component.component_type
+    countdown = component.props.get("variant") == "countdown-center"
+    variant = None
+    part_name = "root"
+    if countdown and name in {"SingleLineTitle", "EmphasizedData", "SecondaryBody"}:
+        variant = "countdown-center"
     try:
-        recipe = component_visual_recipe(component.component_type, size=size)
+        recipe = component_visual_recipe(name, size=size, variant=variant)
     except CompactComponentRuntimeError:
         return None
     parts = recipe.get("parts")
     if not isinstance(parts, dict):
         return None
-    part_name = "root"
     has_visual = component.props.get("icon") or component.props.get("visual")
     if component.component_type == "InfoBlock" and not has_visual:
         part_name = "rootNoVisual"

@@ -11,15 +11,12 @@ The service follows `docs/AGENTS.md`:
 
 - Main Agent selects candidate capabilities.
 - The first interface applies IDS installed-app matching only to dependency package names listed in `WIDGET_SERVICE_IDS_INSTALLATION_FILTER_PACKAGE_NAMES`; the default list contains weather, health, and calendar package names. The generation interface consumes the available list, builds final `CardSpec`, constructs `TaskSpec`, calls the A2UI model client, validates artifact, and returns structured status.
-- Data capabilities, event capabilities, and assets are selected by App/ROM left-closed,
-  right-open ranges in `cloud/data/capabilities/registry_ranges.json`.
+- 数据能力、事件能力和素材按 `cloud/data/capabilities/registry_ranges.json` 中的 App/ROM 版本区间选择。
 - `TaskSpec.dataModelSchema` is projected directly from each capability `outputSchema`: the service reads `type`, `description`, and `sampleValue` from the selected leaf and writes it at `writeResultTo + candidateOutputFields` path. There is no separate data-model mapping file or runtime field-renaming layer.
 - `romVersion` is the only accepted ROM field name. A full value such as `CLS-AL30 6.0.0.328` is normalized to the major/minor version `6.0`.
-- 在线能力区间仅保留 App `[11.7.7.330, 12.0.0.0)`、ROM `[6.0, 8.0)`，命中
-  `app-11.7.7.300_rom-7.0`；未命中且
-  `WIDGET_SERVICE_ENABLE_DEFAULT_CAPABILITY_REGISTRY_FALLBACK=true` 时，默认也回退到二期。
-  一期能力目录已移除。编辑历史一期结果时，仅素材路径恢复使用二期清单；
-  历史结果及其版本元数据保持不变，编辑后的业务能力按本轮二期清单重新校验。
+- 两份快照均要求 ROM `[6.0, 8.0)`。App `[11.7.9.300, 12.0.0.0)` 使用日期计数快照，
+  App `[11.7.7.330, 11.7.9.300)` 及默认回退使用旧快照。
+  编辑历史结果时，素材路径恢复使用历史版本对应的清单，业务能力按本轮选中的清单重新校验。
 - `generateWidgetCard` selects `mep` or the composite `openai` route through
   `WIDGET_SERVICE_A2UI_FORM_MODEL_BACKEND`.
   `generateWidgetCardCompactDsl` selects its backend through `WIDGET_SERVICE_DESIGN_COMPACT_MODEL_BACKEND`, loads

@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from services.compact_component_runtime import (
+    VISUAL_RECIPE_VERSION,
     CompactComponentRuntimeError,
     component_visual_recipe,
     resolve_card_color_palette,
@@ -246,6 +247,18 @@ def _without_fixed_height(component: ComponentRow) -> ComponentRow:
     )
 
 
+def _validate_countdown_context(components: list[ComponentRow]) -> None:
+    root = next((row for row in components if row.component_id == "root"), None)
+    marker = f"{VISUAL_RECIPE_VERSION}:W-countdown-center.root"
+    for component in components:
+        if component.props.get("variant") != "countdown-center":
+            continue
+        if root is None or root.props.get("_visualRecipe") != marker:
+            raise CompactDslConversionError("countdown-center 组件变体仅由宽卡倒计时布局启用。")
+        if component.component_id not in root.children:
+            raise CompactDslConversionError("countdown-center 组件必须是倒计时布局的直接子组件。")
+
+
 def expand_high_level_component_rows(
     components: list[ComponentRow],
     *,
@@ -254,6 +267,7 @@ def expand_high_level_component_rows(
     color_palette: dict[str, str] | None = None,
 ) -> list[ComponentRow]:
     """Expand Fusion high-level rows into the existing base Compact components."""
+    _validate_countdown_context(components)
     if color_palette is None:
         root = next(
             (component for component in components if component.component_id == "root"),
@@ -489,13 +503,14 @@ def validate_single_line_title_layout(components: list[ComponentRow], *, size: s
         _validate_high_level_props(
             header,
             required={"title", "fontColor"},
-            allowed={"title", "icon", "fillColor", "fontColor", "fontSize"},
+            allowed={"title", "icon", "fillColor", "fontColor", "fontSize", "variant"},
         )
         _validate_recipe_font_size(
             header,
             component_name="SingleLineTitle",
             part_name="title",
             size=size,
+            variant=_countdown_variant(header, size),
         )
         _validate_single_line_title_props(header, components, size=size)
 
@@ -536,7 +551,7 @@ def _validate_single_line_title_props(
         if is_bitmap and fill_color is not None:
             raise CompactDslConversionError("SingleLineTitle bitmap icon must not set fillColor.")
     height = header.props.get("height")
-    variant = "withIcon" if has_icon else None
+    variant = _countdown_variant(header, size) or ("withIcon" if has_icon else None)
     _, root_styles = _visual_recipe_part_for_converter(
         "SingleLineTitle",
         "root",
@@ -728,7 +743,7 @@ def _emphasis_secondary_content(component: ComponentRow) -> Any:
 
 
 def _secondary_body_items(component: ComponentRow) -> list[dict[str, Any]]:
-    allowed = {"items", "role", "columns", "separator", "fontColor", "fontSize"}
+    allowed = {"items", "role", "columns", "separator", "fontColor", "fontSize", "variant"}
     _validate_high_level_props(
         component,
         required={"items", "fontColor"},
@@ -888,6 +903,23 @@ def _expand_secondary_body(
     if size not in {"2x2", "2x4"}:
         raise CompactDslConversionError("SecondaryBody requires a 2x2 or 2x4 card.")
     items = _secondary_body_items(component)
+    countdown_variant = _countdown_variant(component, size)
+    if countdown_variant:
+        if len(items) != 1 or items[0].get("maxLines", 1) != 1:
+            raise CompactDslConversionError("countdown-center 日期区必须只有一条单行日期。")
+        item = items[0]
+        value = item.get("value")
+        label = item.get("label")
+        if label:
+            value = _secondary_prefixed_value(label, value)
+        return [_visual_row(
+            component.component_id, "SecondaryBody", "root", size=size,
+            variant=countdown_variant,
+            props={
+                "content": value,
+                "fontColor": _color_with_alpha(component.props.get("fontColor"), 0.6),
+            },
+        )]
     task = {"dataModelSchema": _secondary_sample_schema(data_model or {})}
     texts: list[str | None] = []
     bounds: list[str | None] = []
@@ -1875,7 +1907,8 @@ def _expand_emphasized_data(
         raise CompactDslConversionError("EmphasizedData requires a 2x2 or 2x4 card.")
     if size == "2x2":
         component = _small_numeric_unit_props(component, data_model)
-    allowed = {"value", "unit", "fontColor", "fontSize"}
+    variant = _countdown_variant(component, size)
+    allowed = {"value", "unit", "fontColor", "fontSize", "variant"}
     _validate_high_level_props(
         component,
         required={"value", "fontColor"},
@@ -1886,21 +1919,27 @@ def _expand_emphasized_data(
         component_name="EmphasizedData",
         part_name="value",
         size=size,
+        variant=variant,
     )
     _require_text_value(component, "value")
     _require_color(component, "fontColor")
     unit = component.props.get("unit")
+    if variant and unit is None:
+        raise CompactDslConversionError("countdown-center 数值区必须包含独立单位。")
     if unit is not None:
         _require_string_display_value(component, "unit")
 
     value_id = f"{component.component_id}_value"
     children = [value_id]
+    readout_id = f"{component.component_id}_row" if variant else component.component_id
+    readout_part = "countdownRow" if variant else "root"
     rows = [
         _visual_row(
-            component.component_id,
+            readout_id,
             "EmphasizedData",
-            "root",
+            readout_part,
             size=size,
+            variant=variant,
             props={"itemMargin": 2 if unit else 0},
         ),
         _visual_row(
@@ -1908,6 +1947,7 @@ def _expand_emphasized_data(
             "EmphasizedData",
             "value",
             size=size,
+            variant=variant,
             props={
                 "content": copy.deepcopy(component.props["value"]),
                 "fontColor": component.props["fontColor"],
@@ -1923,6 +1963,7 @@ def _expand_emphasized_data(
                 "EmphasizedData",
                 "unit",
                 size=size,
+                variant=variant,
                 props={
                     "content": copy.deepcopy(unit),
                     "fontColor": _color_with_alpha(component.props["fontColor"], 0.6),
@@ -1935,6 +1976,13 @@ def _expand_emphasized_data(
         rows[0].props,
         tuple(children),
     )
+    if variant:
+        for text_row in rows[1:]:
+            text_row.props.pop("lineHeight", None)
+        rows.insert(0, _visual_row(
+            component.component_id, "EmphasizedData", "root", size=size,
+            variant=variant, children=(readout_id,),
+        ))
     return rows
 
 
@@ -3073,6 +3121,83 @@ def _data_display_variant(
     return None
 
 
+def _optional_data_display_text(component: ComponentRow, name: str) -> Any:
+    value = component.props.get(name)
+    if isinstance(value, str) and not value.strip():
+        value = None
+    if value is not None:
+        _require_string_display_value(component, name)
+    return value
+
+
+def _data_display_optional_visibility(value: Any) -> str | None:
+    expression: str | None = None
+    if _is_path_binding(value):
+        expression = "${" + value.get("path") + "}"
+    elif isinstance(value, str) and value.strip().startswith("{{"):
+        expression = value.strip().removeprefix("{{").removesuffix("}}").strip()
+    result: str | None = None
+    if expression is not None:
+        result = (
+            "{{ (" + expression + ") != null && (" + expression
+            + ") != '' ? 'visible' : 'none' }}"
+        )
+    return result
+
+
+def _expand_numeric_data_display(component: ComponentRow, size: str) -> list[ComponentRow]:
+    """通用单数值配方；副标题分组连同间距一起隐藏，不冻结动态样例。"""
+    subtitle = _optional_data_display_text(component, "secondaryInfo")
+    unit = _optional_data_display_text(component, "unit")
+    identifier = component.component_id
+    title_area = f"{identifier}_title_area"
+    label_id = f"{identifier}_label"
+    subtitle_id = f"{identifier}_secondary"
+    subtitle_group = f"{identifier}_subtitle_group"
+    numeric_area = f"{identifier}_numeric_area"
+    value_row = f"{identifier}_value_row"
+    value_id = f"{identifier}_value"
+    unit_id = f"{identifier}_unit"
+    title_children = (label_id,) if subtitle is None else (label_id, subtitle_group)
+    value_children = (value_id,) if unit is None else (value_id, unit_id)
+    color = component.props.get("fontColor")
+    rows = [
+        _visual_row(identifier, "DataDisplay", "root", size=size, variant="numericFocus",
+                    children=(title_area, numeric_area)),
+        _visual_row(title_area, "DataDisplay", "titleArea", size=size, variant="numericFocus",
+                    children=title_children),
+        _visual_row(label_id, "DataDisplay", "mainTitle", size=size, variant="numericFocus",
+                    props={"content": component.props.get("label"), "fontColor": color}),
+        _visual_row(numeric_area, "DataDisplay", "numericArea", size=size,
+                    variant="numericFocus", children=(value_row,)),
+        _visual_row(value_row, "DataDisplay", "valueRow", size=size, variant="numericFocus",
+                    children=value_children),
+        _visual_row(value_id, "DataDisplay", "value", size=size, variant="numericFocus",
+                    props={"content": copy.deepcopy(component.props.get("value")),
+                           "fontColor": color}),
+    ]
+    if subtitle is not None:
+        visibility = _data_display_optional_visibility(subtitle)
+        group_props = {} if visibility is None else {"visibility": visibility}
+        rows.extend([
+            _visual_row(subtitle_group, "DataDisplay", "subtitleGroup", size=size,
+                        variant="numericFocus", props=group_props, children=(subtitle_id,)),
+            _visual_row(subtitle_id, "DataDisplay", "subtitle", size=size, variant="numericFocus",
+                        props={"content": copy.deepcopy(subtitle),
+                               "fontColor": _color_with_alpha(color, 0.6)}),
+        ])
+    if unit is not None:
+        unit_props = {"content": copy.deepcopy(unit), "fontColor": color}
+        unit_visibility = _data_display_optional_visibility(unit)
+        if unit_visibility is not None:
+            unit_props["visibility"] = unit_visibility
+        rows.append(_visual_row(
+            unit_id, "DataDisplay", "unit", size=size, variant="numericFocus",
+            props=unit_props,
+        ))
+    return rows
+
+
 def _expand_data_display(
     component: ComponentRow,
     size: str,
@@ -3089,22 +3214,22 @@ def _expand_data_display(
         "supportingText",
         "fontColor",
         "fontSize",
+        "secondaryInfo",
+        "unit",
     }
     _validate_high_level_props(
         component,
-        required={"value", "supportingText", "fontColor"},
+        required={"value", "fontColor"},
         allowed=allowed,
     )
     variant = _data_display_variant(component, data_model)
     label = component.props.get("label")
-    has_label = isinstance(label, str) and bool(label.strip())
+    has_label = label is not None
     has_icon = isinstance(component.props.get("icon"), str) and bool(
         component.props["icon"].strip()
     )
-    if label is not None and not has_label:
-        raise CompactDslConversionError(
-            f"{component.component_id}: DataDisplay.label must be non-empty text."
-        )
+    if has_label:
+        _require_string_display_value(component, "label")
     _validate_optional_icon(component)
     if has_label == has_icon:
         raise CompactDslConversionError(
@@ -3115,8 +3240,19 @@ def _expand_data_display(
             f"{component.component_id}: numeric DataDisplay requires a text label."
         )
     _require_text_value(component, "value")
-    _require_text_value(component, "supportingText")
     _require_color(component, "fontColor")
+    new_props = {"secondaryInfo", "unit"}.intersection(component.props)
+    if "supportingText" in component.props and new_props:
+        raise CompactDslConversionError(
+            f"{component.component_id}: do not mix legacy supportingText with secondaryInfo/unit."
+        )
+    if variant is None and "supportingText" not in component.props:
+        return _expand_numeric_data_display(component, size)
+    if variant == "textConclusion" and new_props:
+        raise CompactDslConversionError(
+            f"{component.component_id}: secondaryInfo/unit require numeric DataDisplay.value."
+        )
+    _require_text_value(component, "supportingText")
     secondary_color = _color_with_alpha(component.props["fontColor"], 0.6)
 
     label_id = f"{component.component_id}_label"
@@ -3597,10 +3733,20 @@ def _validate_item_component(
     return items
 
 
+def _countdown_variant(component: ComponentRow, size: str) -> str | None:
+    variant = component.props.get("variant")
+    if variant is not None:
+        if size != "2x4" or variant != "countdown-center":
+            raise CompactDslConversionError("组件只支持2x4 countdown-center受控变体。")
+        if component.props.get("icon") is not None:
+            raise CompactDslConversionError("countdown-center 标题不得包含图标。")
+    return variant
+
+
 def _convert_single_line_title(component: ComponentRow, size: str = "2x2") -> list[dict[str, Any]]:
     props = component.props
     has_icon = isinstance(props.get("icon"), str) and bool(props["icon"].strip())
-    variant = "withIcon" if has_icon else None
+    variant = _countdown_variant(component, size) or ("withIcon" if has_icon else None)
     root_type, root_styles = _visual_recipe_part_for_converter(
         "SingleLineTitle",
         "root",
@@ -3615,6 +3761,8 @@ def _convert_single_line_title(component: ComponentRow, size: str = "2x2") -> li
     )
     root_styles.pop("_visualRecipe", None)
     title_styles.pop("_visualRecipe", None)
+    if variant == "countdown-center":
+        title_styles.pop("lineHeight", None)
     root_styles.pop("itemMargin", None)
     title_id = f"{component.component_id}_title"
     children = [title_id]

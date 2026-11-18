@@ -72,7 +72,8 @@ def _path_business(path: str) -> str | None:
     prefixes = {
         "/data/calendar/": "calendar", "/data/phoneBattery/": "battery",
         "/data/earphone/": "earphone", "/data/weather/": "weather",
-        "/data/countdown/": "countdown", "/data/travel/": "travel",
+        "/data/countdown/": "countdown", "/data/dateCounter/": "countdown",
+        "/data/travel/": "travel",
         "/data/flight/": "travel", "/data/news/": "information",
         "/data/information/": "information", "/data/smartHome/": "smart-home",
         "/data/music/": "music",
@@ -276,4 +277,6 @@ class FinalBusinessContext:
             result = root.children[0]
         elif layout == "W-top-bottom" and len(root.children) in {2, 3}:
             result = root.children[-2]
+        elif layout == "W-countdown-center" and len(root.children) == 3:
+            result = root.children[1]
         return result

@@ -44,19 +44,20 @@ def test_conversion_error_uses_functional_code():
 
 _FROZEN_FILES = []
 for _entry in _manifest().get("files", []):
-    if _entry.get("adaptation", "").startswith("None"):
+    if _entry.get("adaptation", "").startswith("None") or _entry.get("adaptedGitBlob"):
         _FROZEN_FILES.append(_entry)
 
 
 @pytest.mark.parametrize("entry", _FROZEN_FILES, ids=lambda entry: entry.get("source"))
-def test_frozen_resource_and_converter_are_exact_upstream_blobs(entry):
+def test_protocol_resources_match_recorded_blobs(entry):
     root = Path(__file__).resolve().parents[2]
     destination = entry.get("destination")
     assert isinstance(destination, str)
     # 比较Git文本blob，不把Windows checkout的CRLF当成上游内容变化。
     content = (root / destination).read_bytes().replace(b"\r\n", b"\n")
     header = f"blob {len(content)}\0".encode()
-    assert hashlib.sha1(header + content).hexdigest() == entry.get("upstreamGitBlob")
+    expected = entry.get("adaptedGitBlob", entry.get("upstreamGitBlob"))
+    assert hashlib.sha1(header + content).hexdigest() == expected
 
 
 @pytest.mark.parametrize("size", ["2x2", "2x4"])
@@ -147,3 +148,19 @@ def test_mock_returns_matching_original_compact_format(size):
     result = SingleStepFallbackProcessor().process(source, context)
     assert not result.errors
     assert result.standard_dsl
+
+
+@pytest.mark.parametrize("filename", ["PROMPT.md", "FEWSHOT_2x2.md"])
+def test_date_counter_resource_adaptation_is_recorded(filename):
+    entries = _manifest().get("files", [])
+    destination = f"widget_service/cloud/data/protocol_profiles/widget-edit/{filename}"
+    matches = []
+    for entry in entries:
+        if entry.get("destination") == destination:
+            matches.append(entry)
+    assert len(matches) == 1
+    entry = matches[0]
+    assert "日期计数" in entry.get("adaptation", "")
+    assert entry.get("adaptedGitBlob")
+    assert entry.get("upstreamGitBlob")
+    assert entry.get("adaptedGitBlob") != entry.get("upstreamGitBlob")

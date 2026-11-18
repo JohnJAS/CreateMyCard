@@ -1,4 +1,4 @@
-"""一期目录移除后，二期在线匹配、默认回退和历史素材恢复回归。"""
+"""覆盖 ROM 能力隔离、默认回退和历史素材恢复。"""
 
 import json
 
@@ -13,6 +13,8 @@ from config.config import Settings, get_settings
 from models.artifact import ArtifactMeta, WidgetArtifact
 from services.capability_registry import CapabilityRegistry
 from services.compact_dsl_argument_repair import _select_capability_registry
+from services.edit_request_normalizer import EditRequestNormalizer
+from services.generation_preflight import GenerationPreflight
 from services.source_artifact_repository import (
     SourceArtifactLoadResult,
     SourceArtifactRepository,
@@ -20,19 +22,26 @@ from services.source_artifact_repository import (
 from services.widget_generation_service import WidgetGenerationService
 
 PHASE_TWO = "app-11.7.7.300_rom-7.0"
+DATE_COUNTER_REGISTRY = "app-11.7.9.300_rom-7.0"
 VERSION_CASES = [
-    ("11.7.5.205", "7.0", False),
-    ("11.7.7.225", "VYG-AL00 7.0.0.105", False),
-    ("11.7.7.328", "7.1", False),
-    ("11.7.7.329", "7.1", False),
-    ("11.7.7.329.999", "7.1", False),
-    ("11.7.7.330", "CLS-AL30 6.0.0.328", True),
-    ("11.7.7.331", "ALN-AL00 7.1.0.100", True),
-    ("11.9.9.999", "7.9", True),
-    ("12.0.0.0", "7.0", False),
-    ("11.7.7.330", "8.0", False),
-    ("11.7.7.330", "5.9", False),
-    (None, None, False),
+    ("11.7.5.205", "7.0", None),
+    ("11.7.7.225", "VYG-AL00 7.0.0.105", None),
+    ("11.7.7.328", "7.1", None),
+    ("11.7.7.329", "7.1", None),
+    ("11.7.7.329.999", "7.1", None),
+    ("11.7.7.330", "CLS-AL30 6.0.0.328", PHASE_TWO),
+    ("11.7.7.330", "7.0.9", PHASE_TWO),
+    ("11.7.7.331", "ALN-AL00 7.1.0.100", PHASE_TWO),
+    ("11.7.9.299", "7.1", PHASE_TWO),
+    ("11.7.9.300", "7.0", DATE_COUNTER_REGISTRY),
+    ("11.7.9.300", "7.1", DATE_COUNTER_REGISTRY),
+    ("11.9.9.999", "7.9", DATE_COUNTER_REGISTRY),
+    ("12.0.0.0", "7.0", None),
+    ("11.7.9.300", "5.9", None),
+    ("11.7.9.300", "8.0", None),
+    ("11.7.7.330", "5.9", None),
+    ("11.7.7.330", "8.0", None),
+    (None, None, None),
 ]
 
 
@@ -43,7 +52,7 @@ def settings(monkeypatch):
     return settings
 
 
-def test_default_registry_is_phase_two_and_environment_override_is_preserved(monkeypatch):
+def test_default_registry_is_legacy_and_environment_override_is_preserved(monkeypatch):
     for key in (
         "WIDGET_SERVICE_CAPABILITY_REGISTRY_VERSION",
         "CAPABILITY_REGISTRY_VERSION",
@@ -55,26 +64,31 @@ def test_default_registry_is_phase_two_and_environment_override_is_preserved(mon
     assert Settings(_env_file=None).capability_registry_version == "custom-registry"
 
 
-def test_online_index_contains_only_unchanged_phase_two_range(settings):
+def test_online_index_splits_at_app_date_counter_threshold(settings):
     path = settings.data_root / "capabilities" / "registry_ranges.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload.get("ranges") == [
         {
             "registryVersion": PHASE_TWO,
-            "appVersion": {"minInclusive": "11.7.7.330", "maxExclusive": "12.0.0.0"},
+            "appVersion": {"minInclusive": "11.7.7.330", "maxExclusive": "11.7.9.300"},
             "romVersion": {"minInclusive": "6.0", "maxExclusive": "8.0"},
-        }
+        },
+        {
+            "registryVersion": DATE_COUNTER_REGISTRY,
+            "appVersion": {"minInclusive": "11.7.9.300", "maxExclusive": "12.0.0.0"},
+            "romVersion": {"minInclusive": "6.0", "maxExclusive": "8.0"},
+        },
     ]
 
 
 @pytest.mark.parametrize("fallback_enabled", [True, False])
-@pytest.mark.parametrize(("app", "rom", "matched"), VERSION_CASES)
+@pytest.mark.parametrize(("app", "rom", "matched_registry"), VERSION_CASES)
 @pytest.mark.parametrize(
     "request_type",
     [CapabilityOverviewRequest, DataCapabilitySchemasRequest, GenerateWidgetCardRequest],
 )
 def test_public_request_registry_selection(
-    monkeypatch, settings, request_type, app, rom, matched, fallback_enabled
+    monkeypatch, settings, request_type, app, rom, matched_registry, fallback_enabled
 ):
     monkeypatch.setattr(settings, "enable_default_capability_registry_fallback", fallback_enabled)
     values = {
@@ -94,33 +108,33 @@ def test_public_request_registry_selection(
         values["device"] = {"romVersion": rom}
     request = request_type(**values)
     service = WidgetGenerationService()
-    if not matched and not fallback_enabled:
+    if matched_registry is None and not fallback_enabled:
         with pytest.raises(ValueError, match="range not found"):
             service._capability_registry(request)
         return
     registry = service._capability_registry(request)
-    assert registry.version == PHASE_TWO
-    assert registry.selection_type == ("interval" if matched else "explicit")
+    assert registry.version == (matched_registry or PHASE_TWO)
+    assert registry.selection_type == ("interval" if matched_registry else "explicit")
     assert registry.get_data_capability("GetCurrentTime") is not None
 
 
 @pytest.mark.parametrize("fallback_enabled", [True, False])
-@pytest.mark.parametrize(("app", "rom", "matched"), VERSION_CASES)
+@pytest.mark.parametrize(("app", "rom", "matched_registry"), VERSION_CASES)
 def test_argument_repair_registry_matches_generation(
-    monkeypatch, settings, app, rom, matched, fallback_enabled
+    monkeypatch, settings, app, rom, matched_registry, fallback_enabled
 ):
     monkeypatch.setattr(settings, "enable_default_capability_registry_fallback", fallback_enabled)
     payload = {"deviceInfo": {"prdVer": app}}
     content = {"romVersion": rom}
     registry, warnings = _select_capability_registry(payload, content)
-    if not matched and not fallback_enabled:
+    if matched_registry is None and not fallback_enabled:
         assert registry is None
         assert warnings
         return
     assert registry is not None
-    assert registry.version == PHASE_TWO
-    assert registry.selection_type == ("interval" if matched else "explicit")
-    assert bool(warnings) is not matched
+    assert registry.version == (matched_registry or PHASE_TWO)
+    assert registry.selection_type == ("interval" if matched_registry else "explicit")
+    assert bool(warnings) == (matched_registry is None)
     assert registry.get_data_capability("GetCurrentTime") is not None
 
 
@@ -134,25 +148,82 @@ def test_argument_repair_prefers_content_rom_over_device_info(monkeypatch, setti
     assert warnings == []
 
 
-def test_phase_two_index_does_not_require_phase_one_directory(tmp_path):
+def test_online_index_does_not_require_phase_one_directory(tmp_path):
     root = tmp_path / "capabilities"
     (root / PHASE_TWO).mkdir(parents=True)
+    (root / DATE_COUNTER_REGISTRY).mkdir()
     source = get_settings().data_root / "capabilities" / "registry_ranges.json"
     (root / "registry_ranges.json").write_bytes(source.read_bytes())
     assert CapabilityRegistry.from_app_rom_versions("11.7.7.330", "6.0", root) == PHASE_TWO
 
 
-def test_only_phase_two_snapshot_is_shipped(settings):
+def test_only_supported_snapshots_are_shipped(settings):
     root = settings.data_root / "capabilities"
     snapshots = sorted(
         path.name for path in root.iterdir() if (path / "data_capabilities.json").is_file()
     )
-    assert snapshots == [PHASE_TWO]
+    assert snapshots == [PHASE_TWO, DATE_COUNTER_REGISTRY]
     # Git 不记录空目录；本地补丁工具可能留下空目录，但不能留下任何一期文件。
     retired = root / "app-11.7.5.205_rom-6.0"
     assert not any(path.is_file() for path in retired.rglob("*"))
     with pytest.raises((ValueError, FileNotFoundError)):
         CapabilityRegistry(version=retired.name).list_data_capabilities()
+
+
+@pytest.mark.parametrize(
+    ("app", "rom", "available_id", "missing_id"),
+    [
+        ("11.7.7.330", "7.0", "GetCountdownDays", "GetDateCounter"),
+        ("11.7.9.299", "7.1", "GetCountdownDays", "GetDateCounter"),
+        ("11.7.9.300", "7.0", "GetDateCounter", "GetCountdownDays"),
+        ("11.7.9.300", "8.0", "GetCountdownDays", "GetDateCounter"),
+        ("12.0.0.0", "7.0", "GetCountdownDays", "GetDateCounter"),
+        ("11.7.7.329", "7.1", "GetCountdownDays", "GetDateCounter"),
+    ],
+)
+def test_countdown_capability_isolation(monkeypatch, settings, app, rom, available_id, missing_id):
+    monkeypatch.setattr(settings, "enable_default_capability_registry_fallback", True)
+    monkeypatch.setattr(settings, "ids_installation_filter_package_names", ())
+    context = {"uid": "test-user", "prdVer": app, "device": {"romVersion": rom}}
+    service = WidgetGenerationService()
+    overview = service.get_widget_capability_overview(CapabilityOverviewRequest(**context))
+    schema = service.get_data_capability_schemas(
+        DataCapabilitySchemasRequest(dataCapabilityIds=[available_id, missing_id], **context)
+    )
+
+    available_ids = {item.id for item in overview.dataCapabilities}
+    assert available_id in available_ids
+    assert missing_id not in available_ids
+    assert [item.id for item in schema.dataCapabilities] == [available_id]
+    assert schema.missingCapabilityIds == [missing_id]
+
+    output_field = "/days" if available_id == "GetDateCounter" else "/countdownDays"
+    generation = GenerateWidgetCardRequest(
+        userQuery="倒计时", title="倒计时", description="查看目标日期",
+        candidateDataBindings=[
+            {
+                "capabilityId": available_id,
+                "arguments": {"targetDate": "2099-01-01"},
+                "writeResultTo": "/data/countdown",
+                "candidateOutputFields": [output_field],
+            }
+        ],
+        **context,
+    )
+    generation = EditRequestNormalizer.normalize_create(generation)
+    validator = GenerationPreflight(service._capability_registry(generation))
+    accepted = validator.run(generation)
+    assert accepted.blocking_issues == ()
+    assert [item.capabilityId for item in accepted.effective_bindings] == [available_id]
+
+    bindings = generation.candidateDataBindings
+    assert bindings
+    wrong_binding = bindings[0].model_copy(update={"capabilityId": missing_id})
+    wrong_generation = generation.model_copy(update={"candidateDataBindings": [wrong_binding]})
+    preflight = validator.run(wrong_generation)
+    assert preflight.effective_bindings == ()
+    assert len(preflight.blocking_issues) == 1
+    assert preflight.blocking_issues[0].path == "/candidateDataBindings/0/capabilityId"
 
 
 def test_template_provider_schema_paths_are_phase_two(settings):
@@ -174,7 +245,7 @@ def test_template_provider_schema_paths_are_phase_two(settings):
     assert schema_count >= 7
 
 
-@pytest.mark.parametrize("version", ["app-11.7.5.205_rom-6.0", PHASE_TWO])
+@pytest.mark.parametrize("version", ["app-11.7.5.205_rom-6.0", PHASE_TWO, DATE_COUNTER_REGISTRY])
 @pytest.mark.parametrize("restore_genui", [True, False])
 @pytest.mark.parametrize("mapping_hit", [True, False])
 def test_historical_asset_restoration_without_old_snapshot(version, restore_genui, mapping_hit):

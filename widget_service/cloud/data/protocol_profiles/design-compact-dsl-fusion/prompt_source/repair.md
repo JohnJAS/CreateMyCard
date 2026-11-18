@@ -58,7 +58,7 @@ component_contract_repair 处理组件合同；parent_layout_recompose 重新分
 semantic_layout_contract_repair 只修复错误消息定位的 Layout、Region 或 Group：严格调整该节点直属 children 的数量、顺序和角色，保留其它区域和合法变体，不修改展开后几何。第一次原样返回时必须再执行精确修复；同一合同连续两次未闭合才升级父布局，父布局仍失败后才重建整份 DSL。
 只有语法、Props、绑定或素材错误时，不因此重选合法布局、删除视觉或改未报错图标/颜色/事件。若同时有容量、结构或缺事实错误，不能冻结已不成立的布局；按本轮升级范围处理所有关联问题。
 若 repairRouteLock 指定 `S-center` + `DataDisplay`，说明已接受 Plan 只有一个无动作核心事实且首选路线仍成立；所有 scope 都保留该布局和组件，只修报错 Props、绑定、素材或数据行。升级时“不要再次提交相同组件结构”仅禁止重复同一错误实现，不授权改成 `SingleLineTitle` + `EmphasisText` / `EmphasizedData`。
-`DataDisplay.fontSize` 由 Runtime Recipe 管理：数值模式固定48fp，文本模式固定21fp。修复时不新增、修改或依赖该 Prop；旧 DSL 已携带的字号不会成为校验错误。
+`DataDisplay.fontSize` 由 Runtime Recipe 管理：新数值模式固定46fp、单位16fp、主标题16fp、副标题12fp，文本模式固定21fp。修复时不新增、修改或依赖该 Prop；旧 DSL 已携带的字号不会成为校验错误。
 
 ## 3. 修复顺序
 
@@ -98,6 +98,7 @@ semantic_layout_contract_repair 只修复错误消息定位的 Layout、Region �
 | 2x4 EmphasisText.mainText 超宽且无已有次文本 | 用户与Plan未要求大字强调、且原输入已有同对象核心名称或状态时，可将完整原值或绑定移入secondaryText，以已有名称或状态作为mainText；例如mainText为“领事保护”，secondaryText为完整电话号码。字段为secondaryText而非subText；不编造正文、不覆盖已有次文本，完整保留事实和拨号参数，复检12fp次文本单行宽度与总高；仍放不下时重组布局 |
 | TextBlock 项目被拆散或超出槽宽 | 用完整显示格式核对每格文字净宽；将放不下的长值移到较宽正文行。保留已选事实及绑定，短值仍可并列；移出后不足两项则改选合法组件 |
 | EventCard 缺 title / 地点超宽 / 时间序列过长 | 无真实事件标题则普通属性合组，不伪造名称；长地点用普通密度或更宽合法内容区。多事件默认合并一实例；仅W-top-bottom可将同一序列有序分入primary/details两个EventCard，但不因分段跳过总高校验 |
+| W-countdown-center 槽位错误或内容超限 | 标题、天数与单位、目标日期分别放在 SingleLineTitle、EmphasizedData、SecondaryBody；日期只用一项。必要事实或动作无法放入三槽时，改用能完整承载的布局，保留绑定和动作 |
 | EventCard 总高超出父槽 | 若 accepted Plan 只保留 2–3 条同级短事件，且每条的 title、time 和可选 location 合并后仍能单行完整显示，优先比较改用 `SummaryList`：按原顺序将同一 item 的完整文本合为一个显示值，动态字段用 Expression 保留全部 PathBinding。2项按64vp、3项按102vp重算高度并复查单行宽度。超过3项、存在多行长地点，或任一事实未获准省略时，不得借此删项、截断或改写事实；继续比较 compact EventCard、更宽合法区域或父布局重组 |
 | PillButton/CardButton 标签超过6个字符 | 只缩短可见label为最多6个字符，使用“动作+必要目标”，例如“一键导航去公司”改为“导航去公司”；完整保留onClick、参数、真实目标、图标和唯一Action，不靠labelLines绕过 |
 | CardButton 图标不一致 | accepted Plan 已为动作分配素材时，恢复对应原始 src；Plan 为 null 或没有素材候选时保留 CardButton 也合法，原始 DSL 必须省略业务 icon，由转换器展示固定回退图标 `resources/base/media/ic_fallback_light.svg` |
@@ -127,3 +128,11 @@ drop_optional_component 从第4次修复起且当前有结构/容量错误和合
 除明确授权省略项外，全部 Plan must/should 在生成、局部修复、重组和无损紧凑阶段都必须保留。最后输出完整修复 DSL，不原样重交已知失败候选。
 动态进度类型错误时，绑定展示字段 numericSource 指向的有效数值字段；未登记关系时不猜测，不把字符串样例解析为常数或私有数据。若仅能展示文字，保留全部事实并改用文字组件。
 <!-- /prompt:contract -->
+
+S-center新数值模式使用label/secondaryInfo?/value/unit?，标题区60vp，主标题最多两行、每行21vp，
+副标题单行16vp、间距2vp；主副标题字重均为500。
+副标题仅为已接受Plan中同核心的次级信息，不补造、不通过字数决定；动态绑定不能冻结为样例。
+旧supportingText只兼容原底部说明，不与secondaryInfo/unit混用；迁移时根据原含义保留信息。
+
+新数值display填满父内容区，标题区60vp、间距4vp；数值承载区用剩余高度且最小高62vp，
+内部46vp数字单位行居中。数字Text46vp、单位Text21vp，两者文字框底边对齐，不以裁切或压缩闭合容量。

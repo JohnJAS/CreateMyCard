@@ -44,6 +44,9 @@ AMBIGUOUS_METRIC_WARNING_CASES = {22, 24}
 
 
 def _expected_after_main_updates(expected: dict, case_index: int) -> dict:
+    # 日期计数合同允许 DataDisplay.label 绑定字符串；保留原始冻结样本。
+    if case_index == 32:
+        return {"warnings": []}
     # 动态百分比文本不再生成首帧数值副本；只登记本次批准的合同变化。
     if case_index in {3, 4}:
         message = (

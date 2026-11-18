@@ -738,6 +738,15 @@ def composition_region_capacity(
     patterns = layouts.get(layout, [])
     if not 1 <= variant <= len(patterns):
         return None
+    if layout == "W-countdown-center":
+        rules = patterns[variant - 1]
+        root = next((rule for rule in rules if rule.get("path") == []), {})
+        slot = next((rule for rule in rules if rule.get("path") == path), {})
+        height = slot.get("referenceBox", {}).get("height")
+        if isinstance(height, (int, float)):
+            padding = root.get("fixedProps", {}).get("padding", 0)
+            width = reference_dimension(size, "width") - _padding_pair(padding, "width")
+            return {"width": width, "height": float(height), "fixedGap": 0}
     selected = {layout: [patterns[variant - 1]]}
     for area in _content_budgets(size, selected, 0):
         if area.get("path") == path:

@@ -107,6 +107,34 @@ def test_auto_size_detects_wide_card(client):
     assert len([json.loads(line) for line in genui.splitlines()]) == 3
 
 
+def test_preview_converts_countdown_with_object_data_row(client):
+    rows = [
+        ["root", "Layout", {"layout": "W-countdown-center"}, ["header", "countdown", "target"]],
+        ["header", "SingleLineTitle", {"title": "运动会倒计时"}],
+        ["countdown", "EmphasizedData", {"value": {"path": "/data/countdown/days"}, "unit": "天"}],
+        ["target", "SecondaryBody", {"items": [
+            {"label": "目标日：", "value": {"path": "/data/countdown/targetDateText"}},
+        ]}],
+        ["/data/countdown", {"days": 7, "targetDateText": "2026/11/23"}],
+    ]
+    source = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows)
+
+    response = client.post("/debug/renderer/convert", json={"source": source, "size": "2x4"})
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result.get("size") == "2x4"
+    genui = result.get("genui")
+    assert isinstance(genui, str)
+    nodes = components(decode(genui))
+    date = next(node for node in nodes if node.get("id") == "target")
+    assert date.get("component") == "Text"
+    styles = date.get("styles")
+    assert isinstance(styles, dict)
+    assert styles.get("height") == 21
+    assert styles.get("maxLines") == 1
+
+
 @pytest.mark.parametrize("size,layout", [("2x2", "S-title-content"),
                                         ("2x4", "W-split-panels")])
 def test_auto_size_detects_semantic_layout_before_expansion(client, size, layout):

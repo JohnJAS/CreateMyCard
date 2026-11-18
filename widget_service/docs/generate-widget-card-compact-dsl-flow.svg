@@ -114,7 +114,7 @@
   <path d="M900 850 L900 884" class="flow"/>
   <rect x="555" y="890" width="690" height="88" class="condition"/>
   <text x="900" y="921" text-anchor="middle" class="node-title">能力清单区间选择</text>
-  <text x="900" y="949" text-anchor="middle" class="node-text">命中 app-11.7.7.300_rom-7.0；旧 capabilityRegistryVersion 不能覆盖</text>
+  <text x="900" y="949" text-anchor="middle" class="node-text">命中 App 与 ROM 区间后选取清单，默认回退到旧清单</text>
 
   <path d="M1245 934 L1360 934" class="branch"/>
   <rect x="1370" y="880" width="300" height="112" class="failure"/>

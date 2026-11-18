@@ -186,11 +186,6 @@ def test_emphasis_text_secondary_rejects_invalid_binding_arrays(
     ("component_type", "props", "prop_path"),
     [
         (
-            "DataDisplay",
-            {"label": "{{ ${/data/name} }}"},
-            "label",
-        ),
-        (
             "SecondaryBody",
             {"items": [{"label": {"path": "/data/label"}, "value": "内容"}]},
             "items[].label",
@@ -417,7 +412,11 @@ def test_data_display_rejects_text_over_ten_characters() -> None:
         convert_compact_dsl_to_a2ui(compact_dsl, size="2x2")
 
 
-def test_validator_checks_semantic_prop_binding_before_expansion() -> None:
+@pytest.mark.parametrize(
+    "label",
+    ["{{ ${/data/name} }}", {"path": "/data/name"}],
+)
+def test_validator_accepts_data_display_dynamic_label(label: object) -> None:
     compact_dsl = _serialize(
         [
             ["root", "Column", {}, ["display"]],
@@ -425,7 +424,7 @@ def test_validator_checks_semantic_prop_binding_before_expansion() -> None:
                 "display",
                 "DataDisplay",
                 {
-                    "label": "{{ ${/data/name} }}",
+                    "label": label,
                     "value": 3,
                     "supportingText": "天",
                     "fontColor": "#FF1F4799",
@@ -435,18 +434,17 @@ def test_validator_checks_semantic_prop_binding_before_expansion() -> None:
         ]
     )
 
-    with pytest.raises(CompactDslValidationError, match="DataDisplay.label only accepts"):
-        validate_compact_dsl(
-            compact_dsl,
-            task_spec={
-                "size": "2x2",
-                "dataModelSchema": {"data": {"name": {"type": "string"}}},
-                "assetCandidates": [],
-                "eventCandidates": [],
-            },
-            card_spec={"suggestSize": "2x2", "dataBindings": []},
-            enforce_model_component_types=True,
-        )
+    validate_compact_dsl(
+        compact_dsl,
+        task_spec={
+            "size": "2x2",
+            "dataModelSchema": {"data": {"name": {"type": "string"}}},
+            "assetCandidates": [],
+            "eventCandidates": [],
+        },
+        card_spec={"suggestSize": "2x2", "dataBindings": []},
+        enforce_model_component_types=True,
+    )
 
 
 def test_validator_rejects_boolean_path_for_visible_text_prop() -> None:
@@ -590,3 +588,16 @@ def test_repairs_paths_in_conditional_expression() -> None:
         "{{ ${/data/device/current/connected} ? '已连接' : '未连接' }}"
     )
     assert rows[2][0] == "/data/device/current/connected"
+
+
+@pytest.mark.parametrize("schema_type", ["integer", "boolean"])
+def test_data_display_label_rejects_non_string_path(schema_type: str) -> None:
+    errors = collect_compact_component_binding_errors(
+        "display",
+        "DataDisplay",
+        {"label": {"path": "/data/dateCounter/days"}},
+        schema_type_resolver={"/data/dateCounter/days": schema_type}.get,
+    )
+    assert len(errors) == 1
+    assert "component display.props.label:" in errors[0]
+    assert f"schema type {schema_type}" in errors[0]

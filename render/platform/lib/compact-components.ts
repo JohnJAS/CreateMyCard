@@ -71,6 +71,14 @@ const record = (value: unknown): value is RecordValue =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+function countdownVariant(props: RecordValue, size: CardSize): string | undefined {
+  if (props.variant === undefined) return undefined;
+  if (size !== "2x4" || props.variant !== "countdown-center" || props.icon !== undefined) {
+    throw new Error("组件只支持无图标的2x4 countdown-center受控变体。");
+  }
+  return "countdown-center";
+}
+
 function systemPalette(rootProps: RecordValue): Record<string, string> {
   const palettes = visualRecipes.palettes as unknown as Record<string, PaletteContract>;
   const design = rootProps.design;
@@ -151,6 +159,12 @@ function deepMerge(base: RecordValue, override: RecordValue): RecordValue {
   const merged = clone(base);
   for (const [key, value] of Object.entries(override)) {
     const existing = merged[key];
+    if (record(value) && value.replace === true) {
+      const replacement = clone(value);
+      delete replacement.replace;
+      merged[key] = replacement;
+      continue;
+    }
     merged[key] = record(existing) && record(value) ? deepMerge(existing, value) : clone(value);
   }
   return merged;
@@ -742,7 +756,7 @@ function expandHighLevel(
   }
 
   if (type === "SecondaryBody") {
-    const allowed = ["items", "role", "columns", "separator", "fontColor", "fontSize"];
+    const allowed = ["items", "role", "columns", "separator", "fontColor", "fontSize", "variant"];
     requireProps(id, type, p, ["items", "fontColor"], allowed);
     requireColor(id, type, p, "fontColor");
     if (!Array.isArray(p.items) || p.items.length < 1 || p.items.length > 6) {
@@ -762,6 +776,17 @@ function expandHighLevel(
       }
       return typeof item.label === "string" ? { ...item, label: item.label.replace(/ +$/, "") } : item;
     });
+    const dateVariant = countdownVariant(p, size);
+    if (dateVariant) {
+      if (items.length !== 1 || (items[0].maxLines ?? 1) !== 1) {
+        throw new Error("countdown-center 日期区必须只有一条单行日期。");
+      }
+      const item = items[0];
+      return [row(id, "SecondaryBody", "root", size, {
+        content: item.label ? secondaryPrefixedValue(String(item.label), item.value) : item.value,
+        fontColor: colorWithAlpha(String(p.fontColor), 0.6),
+      }, [], dateVariant)];
+    }
     const separator = p.separator ?? " | ";
     const columns = p.columns ?? 2;
     if (!Number.isInteger(columns) || ![1, 2].includes(columns as number)) {
@@ -1125,24 +1150,28 @@ function expandHighLevel(
   }
 
   if (type === "EmphasizedData") {
+    const variant = countdownVariant(p, size);
     requireProps(
       id,
       type,
       p,
       ["value", "fontColor"],
-      ["value", "unit", "fontColor", "fontSize"],
+      ["value", "unit", "fontColor", "fontSize", "variant"],
     );
-    requireRecipeFontSize(id, type, p, size, "value");
+    requireRecipeFontSize(id, type, p, size, "value", variant);
     requireDisplay(id, type, p, "value");
     requireColor(id, type, p, "fontColor");
     if (p.unit !== undefined && (typeof p.unit !== "string" || !p.unit.trim())) {
       throw new Error(`${id}: EmphasizedData.unit 必须是非空文本。`);
     }
     const valueId = `${id}_value`;
+    if (variant && !p.unit) throw new Error("countdown-center 数值区必须包含独立单位。");
+    const readoutId = variant ? `${id}_row` : id;
+    const readoutPart = variant ? "countdownRow" : "root";
     const children = [valueId];
     const rows = [
-      row(id, type, "root", size, { itemMargin: p.unit ? 2 : 0 }, children),
-      row(valueId, type, "value", size, { content: p.value, fontColor: p.fontColor }),
+      row(readoutId, type, readoutPart, size, { itemMargin: p.unit ? 2 : 0 }, children, variant),
+      row(valueId, type, "value", size, { content: p.value, fontColor: p.fontColor }, [], variant),
     ];
     if (p.unit) {
       const unitId = `${id}_unit`;
@@ -1153,7 +1182,12 @@ function expandHighLevel(
         "unit",
         size,
         { content: p.unit, fontColor: colorWithAlpha(String(p.fontColor), 0.6) },
+        [], variant,
       ));
+    }
+    if (variant) {
+      for (const [, text] of rows.slice(1)) delete text.props.lineHeight;
+      rows.unshift(row(id, type, "root", size, {}, [readoutId], variant));
     }
     return rows;
   }
@@ -1937,9 +1971,9 @@ export function expandCompactComponents(
     if (!["SingleLineTitle", "TimelineUnit"].includes(node.type)) continue;
     requireNoChildren(id, node.type, node.children);
     if (node.type === "SingleLineTitle") {
-      const allowed = ["title", "icon", "fillColor", "fontColor", "fontSize"];
+      const allowed = ["title", "icon", "fillColor", "fontColor", "fontSize", "variant"];
       const icon = typeof p.icon === "string" && p.icon.trim() ? p.icon : undefined;
-      const variant = icon ? "withIcon" : undefined;
+      const variant = countdownVariant(p, size) ?? (icon ? "withIcon" : undefined);
       const rootVisual = visualRecipePart("SingleLineTitle", "root", size, variant);
       const expectedHeight = rootVisual.styles.height;
       const invalid = Object.keys(p).some(key => !allowed.includes(key) && !PLACEMENT_PROPS.includes(key))
@@ -1956,6 +1990,7 @@ export function expandCompactComponents(
       }
       requireRecipeFontSize(id, node.type, p, size, "title", variant);
       const titleVisual = visualRecipePart("SingleLineTitle", "title", size, variant);
+      if (variant === "countdown-center") delete titleVisual.styles.lineHeight;
       const children = [`${id}_title`];
       add(children[0], "Text", {
         ...titleVisual.styles,

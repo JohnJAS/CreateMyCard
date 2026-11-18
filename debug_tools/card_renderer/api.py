@@ -49,13 +49,17 @@ def _uses_static_content_components(source: str) -> bool:
     for row in rows:
         if not isinstance(row, list) or len(row) < 2:
             continue
-        if row[1] in _STATIC_COMPONENT_TYPES:
+        component_type = row[1]
+        if not isinstance(component_type, str):
+            continue
+        if component_type in _STATIC_COMPONENT_TYPES:
             has_static_component = True
-        if row[1] in _STATIC_SUPPORT_COMPONENT_TYPES:
+        if component_type in _STATIC_SUPPORT_COMPONENT_TYPES:
             has_static_support_component = True
         props = row[2] if len(row) >= 3 else None
-        if row[1] == "Layout" and isinstance(props, dict):
-            has_static_layout = props.get("layout") in _STATIC_LAYOUT_TYPES
+        if component_type == "Layout" and isinstance(props, dict):
+            layout = props.get("layout")
+            has_static_layout = isinstance(layout, str) and layout in _STATIC_LAYOUT_TYPES
     return has_static_component or (has_static_layout and has_static_support_component)
 
 

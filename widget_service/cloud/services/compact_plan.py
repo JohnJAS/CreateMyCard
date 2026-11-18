@@ -58,7 +58,8 @@ SUBMIT_CARD_PLAN = "submit_card_plan"
 _BINDING_PATH = re.compile(r"\$\{(?P<path>/[^}\s]+)\}")
 # 兼容已落库的旧 Plan；解析时忽略该字段，不再写回新的 Plan。
 _FACT_KEYS = frozenset(
-    {"requirement", "priority", "dataId", "actionId", "text", "displayLabel", "componentHints"}
+    {"requirement", "priority", "dataId", "actionId", "text", "displayLabel", "componentHints",
+     "dataDisplayRole"}
 )
 _TARGET_KEYS = ("dataId", "actionId", "text")
 _FACT_PRIORITIES = frozenset({"must", "should"})
@@ -181,6 +182,7 @@ _LAYOUT_HINTS = {
     ),
     "2x4": (
         "W-top-bottom",
+        "W-countdown-center",
         "W-split-panels",
         "W-content-side-slots",
         "W-four-slots",
@@ -235,6 +237,8 @@ def build_compact_plan_tool(
     static_recovery_facts: tuple[CompactDslRecoveryFact, ...] = (),
 ) -> dict[str, Any]:
     """根据本次 TaskSpec 构造 submit_card_plan 的动态工具合同。"""
+    from services.generation_content_policy import current_content_policy
+
     size = task_spec.get("size")
     max_must_facts = _max_must_facts(size)
     data_paths = list(compact_plan_data_paths(task_spec))
@@ -293,6 +297,16 @@ def build_compact_plan_tool(
             ),
         },
     }
+    if size == "2x2" and not current_content_policy().is_static:
+        properties["dataDisplayRole"] = {
+            "type": "string",
+            "enum": ["title", "subtitle", "value", "unit"],
+            "description": (
+                "仅DataDisplay单核心使用：title静态主标题、subtitle紧密相关次级信息、"
+                "value唯一核心、unit单位；无必要副标题就不选入，不按业务名称补造。"
+                "同一核心的标题和副标题不是第二个核心指标。"
+            ),
+        }
     if allowed_texts is None or allowed_texts:
         properties["text"] = {
             "type": "string",
@@ -484,8 +498,6 @@ def build_compact_plan_tool(
             },
         },
     }
-    from services.generation_content_policy import current_content_policy
-
     if current_content_policy().is_static:
         _extend_static_plan_tool(tool, task_spec, static_recovery_facts)
     return tool
@@ -1460,12 +1472,18 @@ def _normalize_composition(
         return None, [warning]
     variant = value.get("variant")
     valid_variant = isinstance(variant, int) and not isinstance(variant, bool) and variant > 0
-    if value.get("layout") not in _layout_hints(size) or not valid_variant:
+    layout_id = value.get("layout")
+    if layout_id not in _layout_hints(size) or not valid_variant:
         return None, [warning]
-    layout = load_layout_contract().get("layouts", {}).get(value.get("layout"), {})
-    if variant > len(layout.get("patterns", [])):
+    layout = load_layout_contract().get("layouts", {}).get(layout_id, {})
+    patterns = layout.get("patterns", [])
+    if variant > len(patterns):
         return None, [warning]
-    action_count = sum(1 for fact in facts if _requires_action_button(fact))
+    is_countdown = layout_id == "W-countdown-center"
+    if is_countdown:
+        action_count = sum(1 for fact in facts if "actionId" in fact)
+    else:
+        action_count = sum(1 for fact in facts if _requires_action_button(fact))
     action_range = layout.get("actionCount", {})
     if not action_range.get("min", 0) <= action_count <= action_range.get("max", action_count):
         return None, [
@@ -1492,6 +1510,15 @@ def _normalize_composition(
     covered: set[int] = set()
     normalized: list[dict[str, Any]] = []
     notes: list[str] = []
+    countdown_slots: dict[tuple[int, ...], list[str]] = {}
+    if is_countdown:
+        pattern = patterns[variant - 1]
+        for rule in pattern.get("rules", []):
+            path = tuple(rule.get("path", []))
+            if path:
+                countdown_slots[path] = rule.get("types", [])
+        if len(regions) != len(countdown_slots):
+            return None, [warning]
     for region in regions:
         if not _composition_region_shape(region, region_schema):
             return None, [warning]
@@ -1550,6 +1577,14 @@ def _normalize_composition(
             covered.update(group_indexes)
             notes.extend(normalized_group.get("placementNotes", []))
             groups.append(normalized_group)
+        if is_countdown:
+            slot_types = countdown_slots.pop(tuple(region.get("path", [])), [])
+            if capacity is None or len(groups) != 1:
+                return None, [warning]
+            group = groups[0]
+            if group.get("component") not in slot_types or len(group.get("factIndexes", [])) != 1:
+                return None, [warning]
+            group["referenceHeight"] = capacity.get("height")
         height = sum(group.get("referenceHeight") for group in groups)
         height += region.get("gap") * (len(groups) - 1)
         remaining = region.get("referenceHeight") - height
@@ -2479,6 +2514,14 @@ def _compact_visible_state(
         if has_separate_progress_readout:
             visible_props.pop("value", None)
         _collect_paths_and_literals(visible_props, visible_paths, visible_literals)
+        if component.component_type == "DataDisplay":
+            from services.compact_composition_context import small_card_display_text
+
+            numeric_value = visible_props.get("value")
+            if type(numeric_value) in {int, float}:
+                numeric_text = small_card_display_text(numeric_value, {}, bounded_only=True)
+                if numeric_text is not None:
+                    visible_literals.append(numeric_text)
         _collect_structured_item_literals(
             component,
             item_literals,
@@ -3493,9 +3536,30 @@ def compact_plan_required_route(
     if task_spec.get("size") != "2x2" or composition_implementation_conflicts(plan):
         return None
     facts = plan.get("info_required")
-    if not isinstance(facts, list) or len(facts) != 1:
+    if not isinstance(facts, list) or not facts:
         return None
-    fact = facts[0]
+    core_facts = []
+    seen_roles: set[str] = set()
+    for item in facts:
+        if not isinstance(item, dict) or "actionId" in item:
+            return None
+        item_role = item.get("dataDisplayRole", "value")
+        if not isinstance(item_role, str):
+            return None
+        if item_role not in {"title", "subtitle", "value", "unit"}:
+            return None
+        if item_role in seen_roles:
+            return None
+        seen_roles.add(item_role)
+        if item_role == "value":
+            core_facts.append(item)
+        else:
+            item_hints = item.get("componentHints")
+            if not isinstance(item_hints, list) or item_hints[:1] != ["DataDisplay"]:
+                return None
+    if len(core_facts) != 1:
+        return None
+    fact = core_facts[0]
     if not isinstance(fact, dict) or "actionId" in fact:
         return None
     component_hints = fact.get("componentHints")
@@ -3740,6 +3804,7 @@ def _validate_facts(
         query_text = f"{query_text}\n{static_text_source}"
     normalized: list[dict[str, Any]] = []
     seen: dict[tuple[str, str], dict[str, Any]] = {}
+    seen_display_roles: set[str] = set()
     warnings: list[str] = []
     errors: list[str] = []
     for index, raw_fact in enumerate(value):
@@ -3796,6 +3861,26 @@ def _validate_facts(
             "priority": priority,
             target: target_value,
         }
+        display_role = raw_fact.get("dataDisplayRole")
+        if display_role is not None:
+            valid_role = isinstance(display_role, str) and display_role in {
+                "title", "subtitle", "value", "unit",
+            }
+            if not valid_role or task_spec.get("size") != "2x2" or target == "actionId":
+                errors.append(f"{location}.dataDisplayRole requires a 2x2 display fact.")
+                continue
+            role_hints = raw_fact.get("componentHints")
+            if not isinstance(role_hints, list) or role_hints[:1] != ["DataDisplay"]:
+                errors.append(f"{location}.dataDisplayRole requires preferred DataDisplay.")
+                continue
+            if display_role in seen_display_roles:
+                errors.append(f"{location}.dataDisplayRole must identify one unique content role.")
+                continue
+            if display_role == "title" and target != "text":
+                errors.append(f"{location}: DataDisplay title requires static label text.")
+                continue
+            seen_display_roles.add(display_role)
+            fact["dataDisplayRole"] = display_role
         hints = raw_fact.get("componentHints")
         if hints is not None:
             if not isinstance(hints, list):
@@ -3930,19 +4015,27 @@ def _normalize_two_by_four_action_layouts(
     size: Any,
 ) -> tuple[list[str], list[str]]:
     """移除无法承载 2x4 显式动作的无动作布局软候选。"""
-    has_action = any(_requires_action_button(fact) for fact in facts)
-    if size != "2x4" or not has_action or "W-top-bottom" not in layout_hints:
+    if size != "2x4":
         return layout_hints, []
 
-    accepted = [layout for layout in layout_hints if layout != "W-top-bottom"]
+    no_action_slots = set()
+    if any(_requires_action_button(fact) for fact in facts):
+        no_action_slots.add("W-top-bottom")
+    if any("actionId" in fact for fact in facts):
+        no_action_slots.add("W-countdown-center")
+    removed = [layout for layout in layout_hints if layout in no_action_slots]
+    if not removed:
+        return layout_hints, []
+    accepted = [layout for layout in layout_hints if layout not in no_action_slots]
     if not accepted:
         accepted = ["W-content-side-slots", "W-split-panels"]
-    warning = (
-        "W-top-bottom was removed from layoutHints because the 2x4 Plan contains "
+    warnings = [
+        f"{layout} was removed from layoutHints because the 2x4 Plan contains "
         "an Action and this layout has no legal action slot; action-compatible "
         "layout hints were supplied."
-    )
-    return accepted, [warning]
+        for layout in removed
+    ]
+    return accepted, warnings
 
 
 def _normalize_dual_action_plan(

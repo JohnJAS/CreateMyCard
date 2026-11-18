@@ -6,6 +6,7 @@ import { parseExpression, resolvePathBindingsInValue } from "@genui-sdk/interact
 import {
   HIGH_LEVEL_COMPONENT_TYPES,
   expandCompactComponents,
+  visualRecipePart,
   type MiniNode,
   type CardSize,
 } from "./compact-components";
@@ -43,6 +44,11 @@ function expandSemanticLayoutsForPreview(
   size: CardSize,
   warn: (message: string) => void,
 ): Map<string, MiniNode> {
+  for (const node of input.values()) {
+    if (node.type !== "Layout" && node.props.variant === "countdown-center") {
+      throw new Error("countdown-center 组件变体仅由宽卡倒计时布局启用。");
+    }
+  }
   if (![...input.values()].some(node => SEMANTIC_LAYOUT_TYPES.has(node.type))) return input;
   const output = new Map<string, MiniNode>();
   for (const [id, node] of input) {
@@ -148,7 +154,31 @@ function expandSemanticLayoutsForPreview(
         rows.push(rowId);
       }
       children = rows;
+    } else if (layout === "W-countdown-center") {
+      const expected = ["SingleLineTitle", "EmphasizedData", "SecondaryBody"];
+      const rootKeys = ["layout", "backgroundColor", "backgroundImage", "linearGradient"];
+      if (id !== "root" || size !== "2x4" || children.length !== 3) {
+        throw new Error("W-countdown-center 要求三个宽卡区域，根节点不接受 variant。");
+      }
+      if (Object.keys(original.props).some(key => !rootKeys.includes(key))) {
+        throw new Error("W-countdown-center 根节点仅接受布局和背景属性。");
+      }
+      const slotKeys = [["title", "fontColor"], ["value", "unit", "fontColor"], ["items", "fontColor"]];
+      children.forEach((child, index) => {
+        const node = output.get(child);
+        if (!node || node.type !== expected[index] || node.children.length) {
+          throw new Error("countdown-center 区域类型或顺序错误。");
+        }
+        if (Object.keys(node.props).some(key => !slotKeys[index].includes(key))) {
+          throw new Error("countdown-center 的组件样式由布局选择。");
+        }
+        node.props.variant = "countdown-center";
+      });
+      Object.assign(rootProps, visualRecipePart(layout, "root", size).styles);
     } else if (layout === "W-top-bottom" && children.length >= 2) {
+      if (original.props.variant === "countdown-center") {
+        throw new Error("W-top-bottom.variant 未登记，请使用独立布局 W-countdown-center。");
+      }
       const title = children.length >= 3 ? children[0] : undefined;
       const bodyChildren = children.slice(-2);
       const bodyId = generatedPreviewId(output, `${id}__preview_body`);

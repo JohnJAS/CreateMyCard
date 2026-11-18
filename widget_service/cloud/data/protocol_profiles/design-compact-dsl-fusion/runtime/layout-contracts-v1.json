@@ -15,6 +15,7 @@
     ],
     "W-plan-guided": [
       "W-top-bottom",
+      "W-countdown-center",
       "W-split-panels",
       "W-content-side-slots",
       "W-four-slots"
@@ -31,6 +32,7 @@
     ],
     "W-adaptive-single-business": [
       "W-top-bottom",
+      "W-countdown-center",
       "W-split-panels",
       "W-content-side-slots"
     ]
@@ -441,6 +443,18 @@
           ]
         }
       ]
+    },
+    "W-countdown-center": {
+      "size": "2x4",
+      "actionCount": {"min": 0, "max": 0},
+      "patterns": [{
+        "rules": [
+          {"path": [], "types": ["Column"], "props": {"padding": 12, "itemMargin": 5, "alignItems": "center", "justifyContent": "center"}, "childCount": 3, "eventPolicy": "forbid-subtree"},
+          {"path": [0], "types": ["SingleLineTitle"], "slotSize": {"height": 21}, "childCount": 0},
+          {"path": [1], "types": ["EmphasizedData"], "slotSize": {"height": 74}, "childCount": 0},
+          {"path": [2], "types": ["SecondaryBody"], "slotSize": {"height": 21}, "childCount": 0}
+        ]
+      }]
     }
   }
 }

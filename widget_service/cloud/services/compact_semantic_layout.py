@@ -18,6 +18,7 @@ SEMANTIC_LAYOUT_TYPES = frozenset({"Layout", "Region", "Group"})
 LAYOUT_IDS = frozenset(
     {
         "W-top-bottom",
+        "W-countdown-center",
         "W-split-panels",
         "W-content-side-slots",
         "W-four-slots",
@@ -87,6 +88,7 @@ SMALL_CHILD_ROLES = {
 _CHILD_ROLES = {
     "Layout": {
         "W-top-bottom": "[title?, primary, details]",
+        "W-countdown-center": "[SingleLineTitle, EmphasizedData, SecondaryBody]",
         "W-split-panels": "[左侧 Region, 右侧 Region]",
         "W-content-side-slots": (
             "[内容 Region, 上方 InfoBlock/CardButton, 下方 InfoBlock/CardButton]"
@@ -513,6 +515,31 @@ class _Compiler:
             self.content(child, compact=False)
         return (*title, body)
 
+    def countdown_center(self, root: ComponentRow) -> tuple[str, ...]:
+        """只在显式倒计时布局中选择组件配方，不修改已有标题默认值。"""
+        self.count(root, {3})
+        expected = ("SingleLineTitle", "EmphasizedData", "SecondaryBody")
+        slot_props = (
+            {"title", "fontColor"}, {"value", "unit", "fontColor"}, {"items", "fontColor"},
+        )
+        for identifier, kind, allowed in zip(root.children, expected, slot_props, strict=True):
+            source = self.node(identifier)
+            if source.component_type != kind:
+                _fail(identifier, f"W-countdown-center 按顺序要求 {expected}")
+            if "variant" in source.props:
+                _prop_fail(identifier, "countdown-center 的组件变体由布局选择")
+            if "fontSize" in source.props:
+                _prop_fail(identifier, "countdown-center 的字号由布局选择")
+            if source.props.get("icon") is not None:
+                _prop_fail(identifier, "countdown-center 不接受标题图标")
+            self.props(source, allowed)
+            self.content(identifier, compact=False)
+            compiled = self.result[-1]
+            self.result[-1] = ComponentRow(
+                identifier, kind, {**compiled.props, "variant": "countdown-center"}, (),
+            )
+        return root.children
+
     def fixed_slot(self, identifier: str, *, combination: bool) -> None:
         kind = self.node(identifier).component_type
         allowed = {"InfoBlock", "CardButton"}
@@ -561,6 +588,10 @@ class _Compiler:
             kind = "Column"
             props["itemMargin"] = 6
             children = self.top_bottom(root)
+        elif layout == "W-countdown-center":
+            kind, countdown_styles = visual_recipe_part(layout, "root", size=self.size)
+            props.update(countdown_styles)
+            children = self.countdown_center(root)
         elif layout == "W-split-panels":
             self.count(root, {2})
             props.update(itemMargin=self.parent_gap, alignItems="center")

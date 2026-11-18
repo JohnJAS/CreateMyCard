@@ -11,6 +11,78 @@ import { defaultRegistry, renderTree } from "@genui-sdk/renderer";
 
 const highLevelTypes = new Set<string>(HIGH_LEVEL_COMPONENT_TYPES);
 
+test("宽卡居中倒计时保持固定行盒、分离单位和日期绑定", () => {
+  const source = [
+    '["root","Layout",{"layout":"W-countdown-center"},["header","countdown","target"]]',
+    '["header","SingleLineTitle",{"title":"距离春节还有"}]',
+    '["countdown","EmphasizedData",{"value":{"path":"/data/days"},"unit":"天"}]',
+    '["target","SecondaryBody",{"items":[{"label":"目标日：","value":{"path":"/data/date"}}]}]',
+    '["/data/days",100]',
+    '["/data/date","2027年2月6日"]',
+  ].join("\n");
+  const { graph } = compileMiniDsl(source, { size: "2x4", previewMode: true });
+  for (const [id, font, height] of [
+    ["header_title", 16, 21], ["countdown_value", 56, 56],
+    ["countdown_unit", 16, 21], ["target", 16, 21],
+  ] as const) {
+    const styles = graph.getNode(id)?.props.styles as Record<string, unknown>;
+    assert.equal(styles.fontSize, font);
+    assert.equal(styles.height, height);
+  }
+  const root = graph.getRoot();
+  const slot = graph.getNode("countdown");
+  const slotStyles = slot?.props.styles as Record<string, unknown>;
+  const readout = graph.getNode("countdown_row");
+  const readoutStyles = readout?.props.styles as Record<string, unknown>;
+  assert.deepEqual(slot?.children, ["countdown_row"]);
+  assert.equal(slotStyles.height, 74);
+  assert.equal(slotStyles.justifyContent, "center");
+  assert.deepEqual(readout?.children, ["countdown_value", "countdown_unit"]);
+  assert.equal(readoutStyles.height, 56);
+  assert.equal(readoutStyles.alignItems, "bottom");
+  assert.equal(readoutStyles.itemMargin, 2);
+  const valueStyles = graph.getNode("countdown_value")?.props.styles as Record<string, unknown>;
+  const unitStyles = graph.getNode("countdown_unit")?.props.styles as Record<string, unknown>;
+  assert.equal(valueStyles.lineHeight, undefined);
+  assert.equal(unitStyles.fontWeight, 700);
+  assert.equal(unitStyles.lineHeight, undefined);
+  assert.equal(unitStyles.margin, undefined);
+  assert.equal((root?.props.styles as Record<string, unknown>).itemMargin, 5);
+  assert.deepEqual(root?.children, ["header", "countdown", "target"]);
+  assert.match(JSON.stringify(graph.getNode("target")?.props), /\/data\/date/);
+  assert.match(JSON.stringify(graph.getNode("countdown_value")?.props), /\/data\/days/);
+  const titleStyles = graph.getNode("header_title")?.props.styles as Record<string, unknown>;
+  const date = graph.getNode("target");
+  assert.equal(date?.type, "Extended.Text");
+  assert.deepEqual(date?.children, []);
+  assert.equal(titleStyles.fontWeight, 500);
+  assert.equal(titleStyles.lineHeight, undefined);
+  assert.deepEqual(date?.props.styles, {
+    width: "matchParent",
+    height: 21,
+    fontSize: 16,
+    fontWeight: 500,
+    maxLines: 1,
+    textAlign: "center",
+    flexShrink: 0,
+    fontColor: "#991F4799",
+  });
+  const oldSource = source.replace('"layout":"W-countdown-center"',
+    '"layout":"W-top-bottom","variant":"countdown-center"');
+  assert.throws(() => compileMiniDsl(oldSource, { size: "2x4", previewMode: true }), /variant 未登记/);
+  const withAction = source.replace('"layout":"W-countdown-center"',
+    '"layout":"W-countdown-center","onClick":[{"call":"open","args":{}}]');
+  assert.throws(
+    () => compileMiniDsl(withAction, { size: "2x4", previewMode: true }),
+    /根节点仅接受布局和背景属性/,
+  );
+  const withFont = source.replace('"title":"距离春节还有"', '"title":"距离春节还有","fontSize":12');
+  assert.throws(
+    () => compileMiniDsl(withFont, { size: "2x4", previewMode: true }),
+    /组件样式由布局选择/,
+  );
+});
+
 for (const example of fixtures.examples) {
   test(`高阶组件示例：${example.name}`, () => {
     const result = compileMiniDsl(example.source, { size: example.size as "2x2" | "2x4" });

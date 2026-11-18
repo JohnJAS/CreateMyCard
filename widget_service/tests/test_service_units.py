@@ -38,6 +38,7 @@ ROM_VERSION_7 = "ALN-AL00 " + ".".join(("7", "1", "0", "100"))
 ROM_VERSION_7_2 = "ALN-AL00 " + ".".join(("7", "2", "0", "100"))
 ROM_VERSION_7_WITHOUT_MODEL = ".".join(("7", "1", "0", "100"))
 REGISTRY_VERSION_7 = f"app-{APP_VERSION_11_7_7_300}_rom-7.0"
+DATE_COUNTER_REGISTRY = "app-11.7.9.300_rom-7.0"
 PHASE_TWO_DATA_CAPABILITY_IDS = (
     "GetCurrentTime",
     "GetAppPowerConsumptionRanking",
@@ -809,8 +810,8 @@ def test_ids_parser_ignores_provider_intent_and_permission_namespaces():
     [
         (APP_VERSION_11_7_7_330, ROM_VERSION_6, REGISTRY_VERSION_7),
         (APP_VERSION_11_7_7_330, ROM_VERSION_7_0, REGISTRY_VERSION_7),
-        (APP_VERSION_11_8, ROM_VERSION_7, REGISTRY_VERSION_7),
-        (APP_VERSION_11_9, "ALN-AL00 7.9.0.1", REGISTRY_VERSION_7),
+        (APP_VERSION_11_8, ROM_VERSION_7, DATE_COUNTER_REGISTRY),
+        (APP_VERSION_11_9, "ALN-AL00 7.9.0.1", DATE_COUNTER_REGISTRY),
     ],
 )
 def test_capability_registry_matches_app_rom_interval(
@@ -1452,7 +1453,7 @@ def test_capability_registry_uses_inclusive_minimum_and_exclusive_maximum(tmp_pa
     assert second == "second"
 
 
-def test_capability_registry_uses_rom_version_as_the_only_rom_level():
+def test_capability_registry_selects_legacy_snapshot_for_app_below_threshold():
     registry = CapabilityRegistry(
         app_version=APP_VERSION_11_7_7_330,
         device_rom_version=ROM_VERSION_7,

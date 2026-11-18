@@ -885,7 +885,7 @@ def _assign_boxes(region: Region, width: float, height: float, size: str) -> boo
     extents: list[float | None] = []
     for child in region.children:
         extent = child.props.get(axis)
-        if axis == "height" and child.kind not in _CONTAINERS:
+        if axis == "height" and child.kind not in _CONTAINERS and extent is None:
             extent = _part(size, child.kind, "root").get("height")
         if not isinstance(extent, (int, float)):
             extent = None
@@ -925,6 +925,42 @@ def _leaves(region: Region) -> list[Region]:
     return output
 
 
+def _countdown_allocation(
+    zones: list[Region],
+    groups: list[dict[str, Any]],
+    size: str,
+) -> list[list[dict[str, Any]]] | None:
+    if len(zones) != len(groups):
+        return None
+    allocation = []
+    for zone in zones:
+        matching = [group for group in groups if group.get("component") == zone.kind]
+        if len(matching) != 1:
+            return None
+        group = matching[0]
+        sample = group.get("pressureOnly")
+        if not isinstance(sample, str) or "\n" in sample:
+            return None
+        if zone.kind == "SecondaryBody":
+            styles = _part(size, zone.kind, "root", "countdown-center")
+        else:
+            part = "title" if zone.kind == "SingleLineTitle" else "value"
+            styles = _part(size, zone.kind, part, "countdown-center")
+        font = styles.get("fontSize")
+        width = _text_width(sample, font)
+        if zone.kind == "EmphasizedData":
+            unit = group.get("unitFromFieldContract", "天")
+            unit_style = _part(size, zone.kind, "unit", "countdown-center")
+            row_style = _part(size, zone.kind, "countdownRow", "countdown-center")
+            width += _text_width(unit, unit_style.get("fontSize")) + row_style.get("itemMargin", 0)
+        if width > zone.width:
+            return None
+        allocation.append([{
+            **group, "fontSize": font, "requiredHeight": zone.height, "minimumWidth": width,
+        }])
+    return allocation
+
+
 def _allocations(
     zones: list[Region],
     groups: list[dict[str, Any]],
@@ -933,6 +969,11 @@ def _allocations(
     *,
     layout_id: str | None = None,
 ):
+    if layout_id == "W-countdown-center":
+        allocation = _countdown_allocation(zones, groups, size)
+        if allocation is not None:
+            yield allocation
+        return
     allocation: list[list[dict[str, Any]]] = [[] for _ in zones]
     remaining = list(groups)
     unused_actions = copy.deepcopy(actions)

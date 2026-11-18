@@ -153,6 +153,31 @@ def test_secondary_body_contract_groups_related_items() -> None:
     assert "标题、Badge、按钮、布局容器和其它 `SecondaryBody`" in prompt
 
 
+def test_wide_countdown_layout_reaches_online_generation_and_repair_prompts() -> None:
+    task = TaskSpec(userQuery="运动会倒计时", size="2x4", dataModelSchema={"data": {}})
+    create = read_prompt(DEFAULT_SOURCE, "create", size="2x4")
+    plan = read_prompt(DEFAULT_SOURCE, "plan", size="2x4")
+    builder = PromptBuilder()
+    plan_messages = builder.build_compact_plan(task, create + "\n\n" + plan, "{}")
+    generation = builder.build_design_token(
+        task, create, DESIGN_COMPACT_PROFILE_ID,
+        compact_plan={"layoutHints": ["W-countdown-center"], "info_required": []},
+    )
+    repair = builder.build_repair(
+        generation, "invalid dsl", [], dsl_format=DESIGN_COMPACT_PROFILE_ID, task_spec=task,
+    )
+
+    assert "| W-countdown-center |" in create
+    for messages in (plan_messages, generation, repair):
+        system = messages[0].get("content")
+        assert isinstance(system, str)
+        assert "W-countdown-center" in system
+    assert any(
+        "W-countdown-center 槽位错误或内容超限" in message.get("content", "")
+        for message in repair
+    )
+
+
 def test_static_explanation_preserves_dynamic_supporting_text_contract() -> None:
     component = (DEFAULT_SOURCE / "components/common.md").read_text(encoding="utf-8")
     repair = read_prompt(DEFAULT_SOURCE, "repair")

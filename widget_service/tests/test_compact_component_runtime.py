@@ -19,6 +19,7 @@ def test_visual_recipe_contract_registers_all_high_level_components() -> None:
 
     assert contract["version"] == VISUAL_RECIPE_VERSION
     assert set(contract["components"]) == {
+        "W-countdown-center",  # 布局和日期共用的内部视觉配方。
         "SingleLineTitle",
         "DoubleLineTitle",
         "Badge",
@@ -284,7 +285,7 @@ def test_text_block_visual_recipe_declares_two_to_four_item_capacity() -> None:
 def test_secondary_body_visual_recipe_uses_single_and_multiple_line_styles() -> None:
     base = component_visual_recipe("SecondaryBody", size="2x2")
     multiline = component_visual_recipe("SecondaryBody", size="2x2", variant="multiline")
-    assert set(base.get("variants", {})) == {"multiline"}
+    assert set(base.get("variants", {})) == {"multiline", "countdown-center"}
     assert base["metrics"] == {"minimumItems": 1, "maximumItems": 6}
     assert base["parts"]["text"]["styles"]["fontSize"] == 14
     assert base["parts"]["text"]["styles"]["fontWeight"] == 400

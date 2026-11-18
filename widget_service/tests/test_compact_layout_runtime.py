@@ -151,6 +151,7 @@ def test_layout_contract_registers_the_documented_layouts() -> None:
         "W-split-panels",
         "W-content-side-slots",
         "W-four-slots",
+        "W-countdown-center",
     )
 
 

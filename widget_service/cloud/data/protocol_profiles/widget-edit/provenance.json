@@ -17,13 +17,15 @@
       "source": "widget_service/cloud/data/protocol_profiles/design-compact-dsl/PROMPT.md",
       "destination": "widget_service/cloud/data/protocol_profiles/widget-edit/PROMPT.md",
       "upstreamGitBlob": "7e3a7a5c65f6e629e2ab753111754267d5baead0",
-      "adaptation": "None; upstream snapshot."
+      "adaptation": "按日期计数方案更新 GetDateCounter 的 days、动态 relationText 与目标日期展示说明；转换器保持冻结。",
+      "adaptedGitBlob": "43f90b8fcfcad4ddd344e33b4601f0e2e6bec0de"
     },
     {
       "source": "widget_service/cloud/data/protocol_profiles/design-compact-dsl/FEWSHOT_2x2.md",
       "destination": "widget_service/cloud/data/protocol_profiles/widget-edit/FEWSHOT_2x2.md",
       "upstreamGitBlob": "df8674d1ff1b70badf4aa44d5fdbed9dbd77eb77",
-      "adaptation": "None; upstream snapshot."
+      "adaptation": "按日期计数方案将倒计时示例迁移到 dateCounter，标题使用动态 relationText，数值绑定 days。",
+      "adaptedGitBlob": "9793ddc0048e0fa872c22283be0fb067e836fee4"
     },
     {
       "source": "widget_service/cloud/data/protocol_profiles/design-compact-dsl/FEWSHOT_2x4.md",

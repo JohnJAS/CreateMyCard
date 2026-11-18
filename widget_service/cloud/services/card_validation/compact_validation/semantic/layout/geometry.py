@@ -405,6 +405,8 @@ def _column_children_minimum_height(
 def _single_line_title_height(component: ComponentRow, *, size: str | None = None) -> float:
     """标题预占与实际展开共用视觉合同，不维护另一份固定高度。"""
     variant = "withIcon" if component.props.get("icon") else None
+    if component.props.get("variant") == "countdown-center":
+        variant = "countdown-center"
     _, styles = visual_recipe_part("SingleLineTitle", "root", size=size, variant=variant)
     height = _non_negative_number(styles.get("height"))
     if height is None:

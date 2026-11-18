@@ -17,11 +17,12 @@ EXAMPLE_FILES = ("fewshots/2x2.md", "fewshots/2x4.md")
 BLOCK = re.compile(r"```genui\s*\n(.*?)```", re.DOTALL)
 EXAMPLE = re.compile(r"<!-- prompt:(example-[\w-]+) -->(.*?)<!-- /prompt:\1 -->", re.DOTALL)
 QUAD = ("top_left", "top_right", "bottom_left", "bottom_right")
+# V01/V05 同步日期计数合同，V09 同步主副标题与独立单位；其余基线保持不变。
 EXPECTED_EXAMPLES = {
     "fewshots/2x2.md:example-v01":
-        "b902a7f144871919ab53ddc065152520eebb99ca1881ec9796c9f143457e305b",
+        "f6b169dec3f5e108e32f880df42007e58036538c3af9ad9b2e81634f1a9552d5",
     "fewshots/2x2.md:example-v09":
-        "7bf41d3bc4834e9a53264c286bb3fdeec263ecb81920e378d33b486f55af0f1a",
+        "91e7206950edc195160c57b05b375b96b26030d2f2f320c567b3925f507f5d8a",
     "fewshots/2x2.md:example-v15":
         "72e531febc6dfb4925cddb9d2e3c78c4562f50c295a282a64e022faf847e8d6c",
     "fewshots/2x2.md:example-v19":
@@ -39,7 +40,7 @@ EXPECTED_EXAMPLES = {
     "fewshots/2x2.md:example-v13":
         "f9318d7b82ca5166daddf1ed96d49a8f5589eb0a42f5940ad17bb89f46c825e6",
     "fewshots/2x2.md:example-v05":
-        "a82d222c831ea988ebb6ff23ce74e362e923f53631d848158551136d38e22158",
+        "e44cb05d4b7fb4d5fa5d2b3ff615eb8c25feb6de7d3ecde6ca739d918b97710f",
     "fewshots/2x2.md:example-v06":
         "861fecb5147f54dfd7c89380e6ea74009ffa3ad86851d03c1ba8f965b6efdd65",
     "fewshots/2x2.md:example-v02":
