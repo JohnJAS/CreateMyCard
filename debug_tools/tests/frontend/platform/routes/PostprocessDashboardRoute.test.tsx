@@ -40,6 +40,46 @@ describe('PostprocessDashboardRoute', () => {
     expect(screen.queryByText('暂无图片')).not.toBeInTheDocument();
   });
 
+  it('opens a dedicated sample page from score cards when sampleDetail is page', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      const url = String(input);
+      if (url === '/debug/batch/runs/run_1') return response({ postprocessExecutions: [] });
+      if (url.endsWith('/dashboard')) return response({
+        plugin: { id: 'target-effect', name: '目标效果评测' },
+        presentation: { defaultView: 'gallery', sampleDetail: 'page', sampleFields: [] },
+        datasetResult: { status: 'success', summary: '', facts: {}, artifacts: [{
+          key: 'scores', title: '卡片评分总览', dataType: 'records', renderer: 'score-grid',
+          data: [{
+            sampleId: 'Q001', status: 'failed', verdict: '失败', total: 60.0, size: '2x2',
+            dimensions: [],
+          }],
+        }] },
+        samples: [{
+          sampleId: 'Q001', title: '考试倒计时', sequence: 1, status: 'failed',
+          summary: '失败', facts: {}, artifacts: [],
+        }],
+        totalSamples: 1,
+      });
+      throw new Error(`unexpected request: ${url}`);
+    }));
+
+    render(<MemoryRouter initialEntries={[
+      '/batch/runs/run_1/postprocess/post_1/plugins/target-effect',
+    ]}><Routes>
+      <Route path="/batch/runs/:runId/postprocess/:executionId/plugins/:pluginId"
+        element={<PostprocessDashboardRoute />} />
+      <Route path="/batch/runs/:runId/postprocess/:executionId/plugins/:pluginId/samples/:sampleId"
+        element={<div>样本详情页</div>} />
+    </Routes></MemoryRouter>);
+
+    expect(await screen.findByText('卡片评分总览')).toBeInTheDocument();
+    expect(document.querySelector('.postprocess-sample-browser')).toBeNull();
+    expect(document.querySelector('.postprocess-sample-inspector')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: '查看 Q001 失败项明细' }));
+    expect(await screen.findByText('样本详情页')).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/samples?'))).toBe(false);
+  });
+
   it('loads overview, filters samples and opens the sample inspector', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       const url = String(input);
@@ -60,6 +100,9 @@ describe('PostprocessDashboardRoute', () => {
         datasetResult: { status: 'partial', summary: '已评估 2/88 个样本', artifacts: [{
           key: 'overview', title: '召回率汇总', dataType: 'metrics', renderer: 'kpi',
           data: [{ label: '已评估样本', value: '16/88' }],
+        }, {
+          key: 'report', title: 'HTML 报告', dataType: 'file', renderer: 'download',
+          url: '/report.html', toolbar: true,
         }] },
         samples: [
           { sampleId: 'Q001', title: '天气', sequence: 1, status: 'success', summary: '完整', facts: { recallRate: 100, missingComponents: [] }, artifacts: [] },
@@ -88,17 +131,24 @@ describe('PostprocessDashboardRoute', () => {
     expect(document.documentElement).toHaveClass('postprocess-dashboard-active');
     expect(document.body).toHaveClass('postprocess-dashboard-active');
     expect(screen.getByText('16/88')).toBeInTheDocument();
-    fireEvent.click(await screen.findByText('Q002'));
+    const reportLink = screen.getByRole('link', { name: /HTML 报告/ });
+    expect(reportLink).toHaveAttribute('href', '/report.html');
+    expect(reportLink.closest('.postprocess-dashboard-actions')).not.toBeNull();
+    expect(document.querySelector('.postprocess-overview')?.contains(reportLink)).toBe(false);
+    const sampleCard = await screen.findByRole('button', { name: /Q002/ });
+    expect(document.querySelectorAll('.postprocess-sample-card')).toHaveLength(2);
+    expect(document.querySelector('.postprocess-sample-table')).toBeNull();
+    fireEvent.click(sampleCard);
     expect(await screen.findByText('召回 0/2')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('全部状态'), { target: { value: 'failed' } });
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => (
       String(url).includes('status=failed')
     ))).toBe(true));
-    fireEvent.click(screen.getByRole('button', { name: /召回率/ }));
+    fireEvent.change(screen.getByLabelText('样本排序'), { target: { value: 'fact:recallRate' } });
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => (
       String(url).includes('sort=fact%3ArecallRate') && String(url).includes('order=asc')
     ))).toBe(true));
-    fireEvent.click(screen.getByRole('button', { name: /召回率/ }));
+    fireEvent.click(screen.getByRole('button', { name: '切换排序方向' }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => (
       String(url).includes('sort=fact%3ArecallRate') && String(url).includes('order=desc')
     ))).toBe(true));

@@ -1,0 +1,6 @@
+["root","Layout",{"layout":"S-title-content-action"},["title","content","action"]]
+["title","SingleLineTitle",{"title":"备忘录","icon":"resources/base/media/bell_fill.svg","fontSize":12}]
+["content","EventCard",{"items":[{"title":{"path":"/data/memo/notes/0/title"},"time":{"path":"/data/memo/notes/0/content"}}]}]
+["action","PillButton",{"label":"查看详情","onClick":[{"call":"clickToIntent","args":{"abilityName":"MainAbility","bundleName":"com.huawei.hmos.notepad","intentName":"ViewNote","params":{"launchSource":"1","launchType":"0"}}}]}]
+["/data/memo/notes/0/title","示例"]
+["/data/memo/notes/0/content","示例"]

@@ -1,0 +1,3 @@
+["root","Layout",{"layout":"S-center"},["content"]]
+["content","DataDisplay",{"label":"当前时间","value":{"path":"/data/time/currentDate"},"supportingText":"今天"}]
+["/data/time/currentDate","2026-07-09"]

@@ -30,6 +30,63 @@ function RecordTable({ rows }: { rows: RecordRow[] }) {
   </table></div>;
 }
 
+function GroupedTable({ rows }: { rows: RecordRow[] }) {
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set<number>());
+  const outerColumns = useMemo(() => {
+    const keys = new Set<string>();
+    rows.forEach((row) => Object.keys(row).forEach((key) => {
+      if (key !== 'items') keys.add(key);
+    }));
+    return Array.from(keys);
+  }, [rows]);
+  const detailColumns = useMemo(() => {
+    const keys = new Set<string>();
+    rows.forEach((row) => records(row.items).forEach((item) => {
+      Object.keys(item).forEach((key) => keys.add(key));
+    }));
+    return Array.from(keys);
+  }, [rows]);
+  if (!rows.length) return <div className="postprocess-empty">暂无记录</div>;
+  const toggle = (index: number) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  };
+  return <div className="postprocess-artifact-table-scroll"><table className="postprocess-artifact-table postprocess-grouped-table">
+    <thead><tr>{outerColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+    <tbody>{rows.map((row, index) => {
+      const items = records(row.items);
+      const isOpen = expanded.has(index);
+      const label = displayValue(row[outerColumns[0] ?? '']);
+      return [
+        <tr key={`group-${index}`} className="postprocess-grouped-row">
+          {outerColumns.map((column, columnIndex) => <td key={column}>
+            {columnIndex === 0
+              ? <button type="button" className="postprocess-grouped-toggle" aria-expanded={isOpen}
+                  aria-label={`${isOpen ? '收起' : '展开'} ${label} 细则`} onClick={() => toggle(index)}>
+                  <span className="postprocess-grouped-chevron" aria-hidden="true" />
+                  {label}
+                </button>
+              : displayValue(row[column])}
+          </td>)}
+        </tr>,
+        isOpen ? <tr key={`detail-${index}`} className="postprocess-grouped-detail">
+          <td colSpan={outerColumns.length}>
+            {items.length ? <table className="postprocess-artifact-table">
+              <thead><tr>{detailColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+              <tbody>{items.map((item, itemIndex) => <tr key={itemIndex}>
+                {detailColumns.map((column) => <td key={column}>{displayValue(item[column])}</td>)}
+              </tr>)}</tbody>
+            </table> : <div className="postprocess-empty">暂无细则</div>}
+          </td>
+        </tr> : null,
+      ];
+    })}</tbody>
+  </table></div>;
+}
+
 function BarChart({ rows }: { rows: RecordRow[] }) {
   const numericKey = Object.keys(rows[0] ?? {}).find((key) => typeof rows[0]?.[key] === 'number');
   const labelKey = Object.keys(rows[0] ?? {}).find((key) => key !== numericKey);
@@ -219,15 +276,153 @@ function ImageGallery({ items }: { items: RecordRow[] }) {
   </div>;
 }
 
-export function PostprocessArtifactView({ artifact }: { artifact: PostprocessArtifact }) {
+function ScoreGrid({
+  rows,
+  onOpenSample,
+}: {
+  rows: RecordRow[];
+  onOpenSample?: (sampleId: string) => void;
+}) {
+  if (!rows.length) return <div className="postprocess-empty">暂无评分卡</div>;
+  return <div className="postprocess-score-grid">
+    {rows.map((row, index) => {
+      const url = typeof row.url === 'string' ? row.url : '';
+      const total = scoreNumber(row.total);
+      const band = typeof row.band === 'string' ? row.band : '';
+      const status = String(row.status ?? '');
+      const verdict = String(row.verdict ?? '');
+      const sampleId = String(row.sampleId ?? '');
+      const size = String(row.size ?? '2x2');
+      const aspect = sizeAspect(size);
+      const dimensions = Array.isArray(row.dimensions)
+        ? row.dimensions.filter((item): item is RecordRow => (
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+        ))
+        : [];
+      const shot = url
+        ? <a className="postprocess-score-shot" style={{ aspectRatio: aspect }} href={url}
+            target="_blank" rel="noreferrer" aria-label={`查看 ${sampleId} 渲染截图`}
+            onClick={(event) => event.stopPropagation()}>
+            <img src={url} alt={`${sampleId} 渲染截图`} loading="lazy" />
+          </a>
+        : <div className="postprocess-score-shot" style={{ aspectRatio: aspect }}>
+            <span>无截图</span>
+          </div>;
+      const openSample = onOpenSample && sampleId ? () => onOpenSample(sampleId) : undefined;
+      return <article
+        key={`${sampleId}-${index}`}
+        className={`postprocess-score-card is-${status || 'unknown'}${openSample ? ' is-clickable' : ''}`}
+        role={openSample ? 'link' : undefined}
+        tabIndex={openSample ? 0 : undefined}
+        aria-label={openSample ? `查看 ${sampleId} 失败项明细` : undefined}
+        onClick={openSample}
+        onKeyDown={openSample ? (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openSample();
+          }
+        } : undefined}
+      >
+        {shot}
+        <header>
+          <b>{sampleId || `样本 ${index + 1}`}</b>
+          <span className={`postprocess-score-verdict ${status}`}>{verdict || '—'}</span>
+        </header>
+        <div className="postprocess-score-total">
+          <strong>{total === null ? '—' : total.toFixed(1)}</strong>
+          <span>总分 / 100{band ? ` · ${band}` : ''}</span>
+        </div>
+        <ul>
+          {dimensions.map((item, dimensionIndex) => {
+            const score = scoreNumber(item.score);
+            const max = scoreNumber(item.max);
+            const ratio = score !== null && max ? Math.max(0, Math.min(100, score / max * 100)) : 0;
+            const applicable = item.applicable !== false;
+            const reason = typeof item.reason === 'string' ? item.reason : '不适用';
+            const detailRows = Array.isArray(item.items)
+              ? item.items.filter((entry): entry is RecordRow => (
+                Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
+              ))
+              : [];
+            const drops = detailRows
+              .filter((entry) => (scoreNumber(entry.deduction) ?? 0) > 0)
+              .sort((left, right) => (
+                (scoreNumber(right.deduction) ?? 0) - (scoreNumber(left.deduction) ?? 0)
+              ));
+            const visibleDrops = drops.slice(0, 3);
+            const hiddenDrops = drops.length - visibleDrops.length;
+            return <li className="postprocess-score-dim"
+              key={`${String(item.key ?? item.label ?? dimensionIndex)}-${dimensionIndex}`}>
+              <div className="postprocess-score-dim-head">
+                <span>{displayValue(item.label)}</span>
+                <i><em style={{ width: `${ratio}%` }} /></i>
+                <b>{score === null ? '—' : score.toFixed(1)}<small>/{max === null ? '—' : max}</small></b>
+              </div>
+              {!applicable && <p className="postprocess-score-clear">{reason}</p>}
+              {applicable && !drops.length && <p className="postprocess-score-clear">全部通过</p>}
+              {applicable && drops.length > 0 && <ul className="postprocess-score-drops">
+                {visibleDrops.map((entry, dropIndex) => {
+                  const deduction = scoreNumber(entry.deduction);
+                  const title = String(entry.title ?? entry.rule ?? '');
+                  const expected = entry.expected ? `期望：${String(entry.expected)}` : '';
+                  const actual = entry.actual ? `实际：${String(entry.actual)}` : '';
+                  const hint = [expected, actual].filter(Boolean).join('；');
+                  const pending = String(entry.status ?? '') === 'pending';
+                  return <li key={`${title}-${dropIndex}`} title={hint}>
+                    <span>{pending ? '待复核 ' : ''}{title}{entry.actual ? <em>{String(entry.actual)}</em> : null}</span>
+                    <b>−{deduction === null ? '—' : deduction.toFixed(1)}</b>
+                  </li>;
+                })}
+                {hiddenDrops > 0 && <li className="postprocess-score-more">
+                  另有 {hiddenDrops} 条规则扣分，见样本的失败项明细
+                </li>}
+              </ul>}
+            </li>;
+          })}
+          {!dimensions.length && <li className="muted">暂无维度分</li>}
+        </ul>
+        {openSample && <footer className="postprocess-score-open">查看失败项明细 →</footer>}
+      </article>;
+    })}
+  </div>;
+}
+
+function scoreNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function sizeAspect(size: string): string {
+  const match = /^(\d+)x(\d+)$/i.exec(size.trim());
+  if (!match) return '1 / 1';
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return '1 / 1';
+  return `${width} / ${height}`;
+}
+
+export function PostprocessArtifactView({
+  artifact,
+  onOpenSample,
+}: {
+  artifact: PostprocessArtifact;
+  onOpenSample?: (sampleId: string) => void;
+}) {
   const rows = records(artifact.data);
   const renderer = artifact.renderer;
   let body: ReactNode;
   if (artifact.dataType === 'metrics') {
-    body = <div className="postprocess-kpis">{rows.map((item, index) => <div key={index}>
-      <b>{displayValue(item.value)}{item.unit ? <small>{String(item.unit)}</small> : null}</b>
-      <span>{displayValue(item.label)}</span>
-    </div>)}</div>;
+    body = <div className="postprocess-kpis">{rows.map((item, index) => {
+      const text = displayValue(item.value);
+      return <div key={index}>
+        <b className={text.length > 12 ? 'long' : undefined}>{text}
+          {item.unit ? <small>{String(item.unit)}</small> : null}</b>
+        <span>{displayValue(item.label)}</span>
+      </div>;
+    })}</div>;
+  } else if (artifact.dataType === 'records' && renderer === 'score-grid') {
+    body = <ScoreGrid rows={rows} onOpenSample={onOpenSample} />;
+  } else if (artifact.dataType === 'records' && renderer === 'grouped-table') {
+    body = <GroupedTable rows={rows} />;
   } else if (artifact.dataType === 'records' && renderer === 'bar') {
     body = <BarChart rows={rows} />;
   } else if (artifact.dataType === 'records' && renderer === 'line') {
@@ -257,7 +452,17 @@ export function PostprocessArtifactView({ artifact }: { artifact: PostprocessArt
   } else {
     body = <pre>{JSON.stringify(artifact.data ?? artifact, null, 2)}</pre>;
   }
-  return <section className={`postprocess-artifact ${artifact.dataType}`}>
+  const wide = artifact.wide === true ? ' wide' : '';
+  if (artifact.collapsible === true) {
+    return <details className={`postprocess-artifact ${artifact.dataType}${wide} collapsible`}>
+      <summary>
+        <h3>{artifact.title ?? artifact.key}</h3>
+        <span className="postprocess-artifact-toggle" aria-hidden="true" />
+      </summary>
+      {body}
+    </details>;
+  }
+  return <section className={`postprocess-artifact ${artifact.dataType}${wide}`}>
     <h3>{artifact.title ?? artifact.key}</h3>{body}
   </section>;
 }

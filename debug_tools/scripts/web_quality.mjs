@@ -22,6 +22,31 @@ export function collectWebQuality(root) {
     }
     return false;
   };
+  const num = (value) => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const contentBox = (el) => {
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return rect({
+      x: r.x + num(s.borderLeftWidth) + num(s.paddingLeft),
+      y: r.y + num(s.borderTopWidth) + num(s.paddingTop),
+      width: r.width - num(s.borderLeftWidth) - num(s.borderRightWidth)
+        - num(s.paddingLeft) - num(s.paddingRight),
+      height: r.height - num(s.borderTopWidth) - num(s.borderBottomWidth)
+        - num(s.paddingTop) - num(s.paddingBottom),
+    });
+  };
+  const clipChain = (el) => {
+    const chain = [];
+    for (let p = el; p && root.contains(p); p = p.parentElement) {
+      const s = getComputedStyle(p);
+      if (!/hidden|clip/.test(`${s.overflowX} ${s.overflowY}`)) continue;
+      chain.push({ id: p.getAttribute('data-node-id'), box: rect(p.getBoundingClientRect()) });
+    }
+    return chain;
+  };
   const emit = (code, el, message, evidence, confirmed = true) => {
     findings.push({ rule_id: code, severity: 'P1', evidence_type: confirmed ? '程序已证实' : '待确认',
       components: [identity(el)], message, evidence: { component: owner(el).getAttribute('data-node-id'), ...evidence } });
@@ -39,7 +64,8 @@ export function collectWebQuality(root) {
     const boxes = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
-    const evidence = { text: node.textContent, box: rect(box), textRects: boxes.map(rect),
+    const evidence = { text: node.textContent, box: rect(box), contentRect: contentBox(el),
+      textRects: boxes.map(rect), clipChain: clipChain(el),
       clientWidth: el.clientWidth, scrollWidth: el.scrollWidth, clientHeight: el.clientHeight, scrollHeight: el.scrollHeight };
     let clipped = false;
     for (let p = el; p && root.contains(p); p = p.parentElement) {

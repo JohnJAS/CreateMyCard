@@ -1,0 +1,3 @@
+["root","Layout",{"layout":"S-center"},["content"]]
+["content","DataDisplay",{"label":"2029年9月1日","value":{"path":"/data/countdown/countdownDays"},"supportingText":"天"}]
+["/data/countdown/countdownDays",30]

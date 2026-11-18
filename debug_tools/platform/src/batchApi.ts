@@ -149,7 +149,10 @@ export type PostprocessArtifact = {
   dataType: 'metrics' | 'records' | 'matrix' | 'image' | 'json' | 'text' | 'code'
     | 'diff' | 'issues' | 'file' | 'link' | string;
   renderer?: 'kpi' | 'table' | 'bar' | 'line' | 'pie' | 'heatmap' | 'gallery'
-    | 'tree' | 'code' | 'diff' | 'issues' | 'download' | 'link' | string;
+    | 'tree' | 'code' | 'diff' | 'issues' | 'download' | 'link' | 'grouped-table' | string;
+  wide?: boolean;
+  collapsible?: boolean;
+  toolbar?: boolean;
   data?: unknown;
   url?: string;
   path?: string;
@@ -243,6 +246,7 @@ export type PostprocessSampleField = {
 
 export type PostprocessPresentation = {
   defaultView: 'table' | 'gallery';
+  sampleDetail?: 'inline' | 'page';
   sampleFields?: PostprocessSampleField[];
 };
 

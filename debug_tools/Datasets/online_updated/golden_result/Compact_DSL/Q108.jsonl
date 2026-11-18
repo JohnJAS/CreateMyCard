@@ -1,4 +1,4 @@
 ["root","Layout",{"layout":"W-top-bottom","variant":"continuous"},["primary","details"]]
-["primary","SingleLineTitle",{"title":"杭州2天1晚秋日漫游","fontSize":12}]
-["details","SummaryList",{"items":["Day1 09:00-11:30 灵隐寺祈福","Day1 11:30-13:00 知竹素菜馆午餐","Day1 13:30-16:30 浙江省博物馆新馆"]}]
-["/state/ready",true]
+["primary","EmphasisText",{"mainText":"{{ '距出发还有 ' + ${/data/countdown/countdownDays} + ' 天' }}","fontSize":18}]
+["details","SummaryList",{"items":["Day1 09:00 灵隐寺→知竹→省博","Day1 17:00 清河坊→赵府→如家","Day2 09:30 小河直街→胜利河→拱宸桥→返程"]}]
+["/data/countdown/countdownDays",30]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,7 @@ def create_application(args) -> Any:
     print(f"Starting debug tools in {args.mode} mode...")
     print(f"Server listening on http://{args.host}:{args.port}/debug")
     gallery_base_url = f"http://{args.host}:{args.port}/debug"
+    os.environ["DEBUG_TOOLS_RENDERER_BASE_URL"] = gallery_base_url
     if args.mode == "frontend":
         return create_frontend_app(
             trace_root=args.trace_root,

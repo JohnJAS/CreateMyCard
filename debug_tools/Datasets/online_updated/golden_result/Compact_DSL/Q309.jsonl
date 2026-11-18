@@ -1,0 +1,5 @@
+["root","Layout",{"layout":"S-center"},["content"]]
+["content","DataDisplay",{"label":"今日","value":{"path":"/data/currentTime/currentDate"},"supportingText":"{{ ${/data/currentTime/dayOfWeek} + ' ' + ${/data/currentTime/lunarDate} }}"}]
+["/data/currentTime/currentDate","2026-07-09"]
+["/data/currentTime/dayOfWeek","星期四"]
+["/data/currentTime/lunarDate","五月廿六"]

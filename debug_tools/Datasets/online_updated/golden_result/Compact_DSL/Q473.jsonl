@@ -1,0 +1,8 @@
+["root","Layout",{"layout":"S-title-anchor"},["title","primary","support","action"]]
+["title","SingleLineTitle",{"title":"时间","fontSize":12}]
+["primary","EmphasisText",{"mainText":{"path":"/data/time/currentDate"},"secondaryText":{"path":"/data/time/dayOfWeek"},"fontSize":18}]
+["support","SecondaryBody",{"items":[{"label":"农历","value":{"path":"/data/time/lunarDate"}}],"fontSize":14}]
+["action","CircleButton",{"icon":"resources/base/media/emoji_time.png","accessibility":{"label":"打开华为时钟应用"},"onClick":[{"call":"clickToDeeplink","args":{"abilityName":"com.huawei.hmos.clock.phone","bundleName":"com.huawei.hmos.clock","intentName":"Clock","uri":""}}]}]
+["/data/time/currentDate","2026-07-09"]
+["/data/time/dayOfWeek","星期四"]
+["/data/time/lunarDate","五月廿六"]

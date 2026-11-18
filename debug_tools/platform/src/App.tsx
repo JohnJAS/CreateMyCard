@@ -13,6 +13,7 @@ import { BatchTaskCenterRoute } from './routes/BatchTaskCenterRoute';
 import { BatchTaskCreateRoute } from './routes/BatchTaskCreateRoute';
 import { BatchGalleryCaptureRoute } from './routes/BatchGalleryCaptureRoute';
 import { PostprocessDashboardRoute } from './routes/PostprocessDashboardRoute';
+import { PostprocessSampleRoute } from './routes/PostprocessSampleRoute';
 import { QualityRoute } from './routes/QualityRoute';
 import { QualityCompareRoute } from './routes/QualityCompareRoute';
 import { QualityEvaluationRoute } from './routes/QualityEvaluationRoute';
@@ -107,6 +108,10 @@ export default function App() {
         <Route
           path="/batch/runs/:runId/postprocess/:executionId/plugins/:pluginId"
           element={<PostprocessDashboardRoute />}
+        />
+        <Route
+          path="/batch/runs/:runId/postprocess/:executionId/plugins/:pluginId/samples/:sampleId"
+          element={<PostprocessSampleRoute />}
         />
         <Route path="*" element={<Shell />} />
       </Routes>

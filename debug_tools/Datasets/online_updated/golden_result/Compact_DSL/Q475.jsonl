@@ -1,4 +1,4 @@
 ["root","Layout",{"layout":"W-static-content"},["header","body"]]
-["header","SingleLineTitle",{"title":"2026年11-12月 大小周排班"}]
-["body","TextList",{"items":[{"primaryText":"小周 · 上六休一 周日休","secondaryText":"11/2-11/8、11/16-11/22、11/30-12/6、12/14-12/20、12/28-12/31"},{"primaryText":"大周 · 上五休二 周六周日休","secondaryText":"11/9-11/15、11/23-11/29、12/7-12/13、12/21-12/27"}]}]
+["header","SingleLineTitle",{"title":"2026年11-12月大小周排班"}]
+["body","SingleLineList",{"items":[{"text":"小周","assist":"11/2-11/8、11/16-11/22 休周日"},{"text":"小周","assist":"11/30-12/6、12/14-12/20 休周日"},{"text":"小周","assist":"12/28-12/31 休周日"},{"text":"大周","assist":"11/9-11/15、11/23-11/29 休周末"},{"text":"大周","assist":"12/7-12/13、12/21-12/27 休周末"}]}]
 ["/state/ready",true]

@@ -1,4 +1,4 @@
 ["root","Layout",{"layout":"S-static-content"},["header","body"]]
-["header","SingleLineTitle",{"title":"婚礼"}]
-["body","TextList",{"items":[{"primaryText":"日期","secondaryText":"农历十月初八 · 公历2026年11月16日（星期一）"},{"primaryText":"地点","secondaryText":"青岛李沧区亨通大酒店"}]}]
+["header","SingleLineTitle",{"title":"恭贺新婚之喜","icon":"resources/base/media/heart_fill.svg"}]
+["body","SingleLineList",{"items":[{"text":"新人","assist":"吕鸿 孙雅丽"},{"text":"公历","assist":"2026-11-16"},{"text":"农历","assist":"十月初八"},{"text":"星期","assist":"星期一"},{"text":"地点","assist":"青岛亨通大酒店"}]}]
 ["/state/ready",true]

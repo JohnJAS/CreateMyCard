@@ -91,6 +91,7 @@ class BatchTaskManager:
         self.postprocess_manager = postprocess_manager or PostprocessManager(
             self.output_root,
             plugins_root,
+            renderer_base_url=gallery_base_url,
             builtin_runners={
                 "browser-capture": partial(run_browser_capture_plugin, self.gallery_manager),
                 "browser-gallery": partial(run_gallery_report, self.gallery_manager, "browser"),

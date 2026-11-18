@@ -1,0 +1,6 @@
+["root","Layout",{"layout":"S-title-primary-secondary-action"},["title","primary","support","action"]]
+["title","SingleLineTitle",{"title":"当前时间","fontSize":12}]
+["primary","EmphasisText",{"mainText":"10:30","fontSize":18}]
+["support","SecondaryBody",{"items":[{"label":"日期 ","value":"2026-9-19"},{"label":"星期 ","value":"星期六"},{"label":"农历 ","value":"八月初九"}],"columns":1,"fontSize":12}]
+["action","PillButton",{"label":"打开闹钟","onClick":[{"call":"clickToDeeplink","args":{"abilityName":"com.huawei.hmos.clock.phone","bundleName":"com.huawei.hmos.clock","intentName":"Clock","uri":""}}]}]
+["/state/ready",true]

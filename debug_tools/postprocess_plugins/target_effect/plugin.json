@@ -1,0 +1,159 @@
+{
+  "apiVersion": "batch-postprocess-v2",
+  "id": "target-effect",
+  "name": "目标效果评测（倒计时）",
+  "version": "1.6.0",
+  "description": "纯规则评测倒计时卡片：对模型渲染做规范符合（60）与可见性（40）的确定性打分，输出规则证据，不做期望图与模型渲染的视觉比对；失败明细在独立样本页面查看，评分卡缩略图仅用于定位；两个维度固定构成 100 分，不适用维度记 0 分并展示原因；版式与素材规则只做诊断，不影响分数与结论。",
+  "entrypoint": "plugin.py",
+  "dependence": [],
+  "timeoutSeconds": 1800,
+  "outputs": [
+    {
+      "key": "verdict",
+      "scope": "sample",
+      "title": "规范布局",
+      "dataType": "metrics",
+      "renderer": "kpi",
+      "required": true
+    },
+    {
+      "key": "issues",
+      "scope": "sample",
+      "title": "失败与待复核项",
+      "dataType": "issues",
+      "renderer": "table",
+      "required": true
+    },
+    {
+      "key": "overview",
+      "scope": "dataset",
+      "title": "整批概览",
+      "dataType": "metrics",
+      "renderer": "kpi",
+      "required": true
+    },
+    {
+      "key": "rules",
+      "scope": "dataset",
+      "title": "细分维度平均",
+      "dataType": "records",
+      "renderer": "grouped-table",
+      "required": true,
+      "wide": true
+    },
+    {
+      "key": "samples",
+      "scope": "dataset",
+      "title": "全部样本",
+      "dataType": "records",
+      "renderer": "table",
+      "required": true,
+      "wide": true
+    },
+    {
+      "key": "scores",
+      "scope": "dataset",
+      "title": "卡片评分总览",
+      "dataType": "records",
+      "renderer": "score-grid",
+      "required": true,
+      "wide": true
+    },
+    {
+      "key": "report",
+      "scope": "dataset",
+      "title": "HTML 报告",
+      "dataType": "file",
+      "renderer": "download",
+      "required": true,
+      "toolbar": true
+    }
+  ],
+  "presentation": {
+    "defaultView": "gallery",
+    "sampleDetail": "page",
+    "sampleFields": [
+      {
+        "key": "score",
+        "label": "总分",
+        "type": "number",
+        "sortable": true
+      },
+      {
+        "key": "scoreVisibility",
+        "label": "可见性",
+        "type": "number",
+        "sortable": true
+      },
+      {
+        "key": "scoreSpec",
+        "label": "规范布局",
+        "type": "number",
+        "sortable": true
+      },
+      {
+        "key": "verdict",
+        "label": "结论",
+        "type": "string",
+        "filterable": true,
+        "sortable": true
+      },
+      {
+        "key": "failed",
+        "label": "失败项",
+        "type": "number",
+        "sortable": true
+      },
+      {
+        "key": "pending",
+        "label": "待复核项",
+        "type": "number",
+        "sortable": true
+      }
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "rendererBaseUrl": {
+        "type": "string",
+        "title": "渲染器地址",
+        "default": "http://127.0.0.1:8888/debug",
+        "description": "本地调试工作台地址，末尾不要带 /renderer"
+      },
+      "browserExecutable": {
+        "type": "string",
+        "title": "浏览器可执行文件",
+        "default": "",
+        "description": "留空时自动查找 Edge/Chrome/Chromium"
+      },
+      "nodeExecutable": {
+        "type": "string",
+        "title": "Node.js 路径",
+        "default": "",
+        "description": "留空时使用 PATH 中的 node"
+      },
+      "captureScale": {
+        "type": "integer",
+        "title": "截图倍率",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 4
+      },
+      "captureViewport": {
+        "type": "string",
+        "title": "采集视口",
+        "default": "",
+        "description": "浏览器视口宽x高，例如 1920x1080；留空使用 1600x1000"
+      },
+      "captureTimeoutSeconds": {
+        "type": "integer",
+        "title": "采集超时（秒）",
+        "default": 1800,
+        "minimum": 60,
+        "maximum": 7200
+      }
+    }
+  }
+}

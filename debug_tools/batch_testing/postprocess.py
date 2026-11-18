@@ -37,7 +37,7 @@ _DATA_TYPES = {
 }
 _RENDERERS_BY_DATA_TYPE = {
     "metrics": {"kpi", "table"},
-    "records": {"table", "bar", "line", "pie"},
+    "records": {"table", "bar", "line", "pie", "score-grid", "grouped-table"},
     "matrix": {"heatmap", "table"},
     "image": {"gallery"},
     "json": {"tree"},
@@ -65,12 +65,15 @@ class PostprocessManager:
         builtin_runners: dict[str, BuiltinRunner] | None = None,
         config_resolver: ConfigResolver | None = None,
         timeout_seconds: float = 900.0,
+        renderer_base_url: str | None = None,
     ) -> None:
         self.output_root = output_root.resolve()
         self.plugins_root = plugins_root.resolve()
         self.builtin_runners = builtin_runners or {}
         self.config_resolver = config_resolver
         self.timeout_seconds = timeout_seconds
+        self.renderer_base_url = (renderer_base_url or "").rstrip("/")
+        self._shipped_renderer_defaults: dict[str, str] = {}
         self.queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
         self.worker: asyncio.Task[None] | None = None
         self.execution_tasks: set[asyncio.Task[None]] = set()
@@ -128,7 +131,7 @@ class PostprocessManager:
                 manifest = self._validate_manifest(self._read_json(path), path.parent)
             except (OSError, ValueError, json.JSONDecodeError):
                 continue
-            manifests.append(self._public_manifest(manifest))
+            manifests.append(self._public_manifest(self._with_renderer_default(manifest)))
         return manifests
 
     def enqueue(
@@ -182,6 +185,7 @@ class PostprocessManager:
                 raise ValueError(f"插件配置无效: {plugin_id}: {errors[0].message}")
             if self.config_resolver is not None:
                 config = self.config_resolver(plugin_id, config)
+            config = self._follow_renderer_base(plugin_id, config)
             if plugin_id == "quality-score":
                 selected_samples = self._quality_samples(self._read_json(summary_path), config)
                 config = {"sampleIds": [sample.get("id") for sample in selected_samples]}
@@ -763,6 +767,8 @@ class PostprocessManager:
                 asset_root=dataset_dir,
                 asset_base_url=f"{asset_base_url}/dataset",
                 allow_deferred=True,
+                image_root=plugin_dir,
+                image_base_url=asset_base_url,
             )
         except Exception as exc:
             dataset_result = {
@@ -995,6 +1001,8 @@ class PostprocessManager:
                 scope="dataset",
                 asset_root=plugin_dir / "dataset",
                 asset_base_url=f"{asset_base_url}/dataset",
+                image_root=plugin_dir,
+                image_base_url=asset_base_url,
             )
         return merged_samples, merged_dataset
 
@@ -1044,8 +1052,43 @@ class PostprocessManager:
     def _manifests(self) -> list[dict[str, Any]]:
         values: list[dict[str, Any]] = []
         for path in sorted(self.plugins_root.glob("*/plugin.json")):
-            values.append(self._validate_manifest(self._read_json(path), path.parent))
+            manifest = self._validate_manifest(self._read_json(path), path.parent)
+            values.append(self._with_renderer_default(manifest))
         return values
+
+    def _with_renderer_default(self, manifest: dict[str, Any]) -> dict[str, Any]:
+        """把渲染器地址默认值对齐到当前工作台，避免固定 8888 端口采集失败。"""
+        base_url = self.renderer_base_url
+        if not base_url:
+            return manifest
+        schema = manifest.get("configSchema")
+        if not isinstance(schema, dict):
+            return manifest
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            return manifest
+        renderer = properties.get("rendererBaseUrl")
+        if not isinstance(renderer, dict):
+            return manifest
+        shipped = renderer.get("default")
+        if isinstance(shipped, str):
+            plugin_id = str(manifest.get("id") or "")
+            self._shipped_renderer_defaults[plugin_id] = shipped.rstrip("/")
+        renderer["default"] = base_url
+        return manifest
+
+    def _follow_renderer_base(self, plugin_id: str, config: dict[str, Any]) -> dict[str, Any]:
+        """配置仍停留在插件出厂默认端口时，改用当前工作台地址执行。"""
+        base_url = self.renderer_base_url
+        shipped = self._shipped_renderer_defaults.get(plugin_id, "")
+        if not base_url or not shipped:
+            return config
+        value = config.get("rendererBaseUrl")
+        if not isinstance(value, str) or value.strip().rstrip("/") != shipped:
+            return config
+        updated = dict(config)
+        updated["rendererBaseUrl"] = base_url
+        return updated
 
     @staticmethod
     def _validate_manifest(value: dict[str, Any], root: Path) -> dict[str, Any]:
@@ -1267,6 +1310,9 @@ class PostprocessManager:
                 "renderer",
                 "required",
                 "deferred",
+                "wide",
+                "collapsible",
+                "toolbar",
             }
             if set(output) - allowed_keys:
                 raise ValueError("插件 outputs 包含不支持的字段")
@@ -1290,6 +1336,12 @@ class PostprocessManager:
                 raise ValueError(f"插件 output required 无效: {key}")
             if "deferred" in output and not isinstance(output.get("deferred"), bool):
                 raise ValueError(f"插件 output deferred 无效: {key}")
+            if "wide" in output and not isinstance(output.get("wide"), bool):
+                raise ValueError(f"插件 output wide 无效: {key}")
+            if "collapsible" in output and not isinstance(output.get("collapsible"), bool):
+                raise ValueError(f"插件 output collapsible 无效: {key}")
+            if "toolbar" in output and not isinstance(output.get("toolbar"), bool):
+                raise ValueError(f"插件 output toolbar 无效: {key}")
             if output.get("deferred") is True and output.get("required") is not True:
                 raise ValueError(f"插件 output deferred 只允许用于必选产物: {key}")
             identity = (scope, key)
@@ -1303,10 +1355,12 @@ class PostprocessManager:
             return
         if not isinstance(value, dict):
             raise ValueError("插件 presentation 必须是对象")
-        if set(value) - {"defaultView", "sampleFields"}:
+        if set(value) - {"defaultView", "sampleDetail", "sampleFields"}:
             raise ValueError("插件 presentation 包含不支持的字段")
         if value.get("defaultView", "table") not in {"table", "gallery"}:
             raise ValueError("插件 presentation.defaultView 无效")
+        if value.get("sampleDetail", "inline") not in {"inline", "page"}:
+            raise ValueError("插件 presentation.sampleDetail 无效")
         fields = value.get("sampleFields", [])
         if not isinstance(fields, list):
             raise ValueError("插件 presentation.sampleFields 必须是数组")
@@ -1404,6 +1458,8 @@ class PostprocessManager:
         asset_root: Path | None = None,
         asset_base_url: str = "",
         allow_deferred: bool = False,
+        image_root: Path | None = None,
+        image_base_url: str = "",
     ) -> dict[str, Any]:
         status = value.get("status", "success")
         if status not in _RESULT_STATUSES:
@@ -1442,7 +1498,19 @@ class PostprocessManager:
             renderer = output.get("renderer")
             if renderer is not None:
                 normalized["renderer"] = renderer
-            cls._normalize_artifact_path(normalized, asset_root, asset_base_url)
+            if output.get("wide") is True:
+                normalized["wide"] = True
+            if output.get("collapsible") is True:
+                normalized["collapsible"] = True
+            if output.get("toolbar") is True:
+                normalized["toolbar"] = True
+            cls._normalize_artifact_path(
+                normalized,
+                asset_root,
+                asset_base_url,
+                image_root=image_root,
+                image_base_url=image_base_url,
+            )
             try:
                 json.dumps(normalized, ensure_ascii=False)
             except (TypeError, ValueError) as exc:
@@ -1542,18 +1610,50 @@ class PostprocessManager:
         artifact: dict[str, Any],
         asset_root: Path | None,
         asset_base_url: str,
+        *,
+        image_root: Path | None = None,
+        image_base_url: str = "",
     ) -> None:
         relative_path = artifact.get("path")
-        if relative_path is None:
-            return
-        if not isinstance(relative_path, str) or asset_root is None:
+        if isinstance(relative_path, str) and asset_root is not None:
+            safe_relative = PostprocessManager._safe_asset_relative(
+                relative_path,
+                asset_root,
+                "插件 artifact path 无效",
+            )
+            artifact["path"] = safe_relative
+            artifact["url"] = f"{asset_base_url}/{quote(safe_relative, safe='/')}"
+        elif relative_path is not None:
             raise ValueError("插件 artifact path 无效")
+        if artifact.get("renderer") != "score-grid":
+            return
+        rows = artifact.get("data")
+        if not isinstance(rows, list):
+            return
+        row_root = image_root or asset_root
+        row_base_url = image_base_url or asset_base_url
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            image = row.get("image")
+            if not isinstance(image, str) or not image:
+                continue
+            if row_root is None:
+                raise ValueError("插件 artifact path 无效")
+            safe_relative = PostprocessManager._safe_asset_relative(
+                image,
+                row_root,
+                "插件评分卡图片路径无效",
+            )
+            row["image"] = safe_relative
+            row["url"] = f"{row_base_url}/{quote(safe_relative, safe='/')}"
+
+    @staticmethod
+    def _safe_asset_relative(relative_path: str, asset_root: Path, error: str) -> str:
         resolved = (asset_root / relative_path).resolve()
         if not resolved.is_relative_to(asset_root.resolve()) or not resolved.is_file():
-            raise ValueError("插件 artifact 文件不存在或路径越界")
-        safe_relative = resolved.relative_to(asset_root.resolve()).as_posix()
-        artifact["path"] = safe_relative
-        artifact["url"] = f"{asset_base_url}/{quote(safe_relative, safe='/')}"
+            raise ValueError(error)
+        return resolved.relative_to(asset_root.resolve()).as_posix()
 
     def _persist_stage(
         self,
