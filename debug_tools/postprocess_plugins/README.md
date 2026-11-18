@@ -10,7 +10,7 @@
 Python 依赖：
 
 ```powershell
-uv sync
+uv sync --project debug_tools
 ```
 
 `example-metrics`、`complete-showcase` 和 `component-recall` 只需要上述 Python 环境。其它内置插件还需要
@@ -39,7 +39,7 @@ Edge/Chrome/Chromium 路径。浏览器不在这些位置时，在启动调试�
 
 ```powershell
 $env:WIDGET_DEBUG_GALLERY_BROWSER_EXECUTABLE = 'D:\Tools\Chrome\chrome.exe'
-uv run debug_tools
+uv run --project debug_tools debug_tools
 ```
 
 该变量只对当前终端有效。设置后应保持平台进程从同一终端启动，以便 Node.js 子进程继承配置。

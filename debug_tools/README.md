@@ -86,7 +86,7 @@ unsigned 应用沙箱，平台自动改用 Ability 分块传输，由 App 重组
 以下命令均从仓库根目录开始执行。
 
 ```powershell
-uv sync
+uv sync --project debug_tools
 ```
 
 没有使用 `uv` 时，可按 [`widget_service/README.md`](../widget_service/README.md#run) 创建 Python 3.12
@@ -97,7 +97,7 @@ uv sync
 完整模式提供全部页面，并启用端到端调试所需的 Main Agent 后端：
 
 ```powershell
-uv run debug_tools
+uv run --project debug_tools debug_tools
 ```
 
 打开 <http://127.0.0.1:8888/debug/>。
@@ -243,5 +243,5 @@ npm run build
 
 浏览器和真机共用 `a2ui_render/entry/src/main/resources/base/media/` 下的图片。
 浏览器专用背景与字体位于 `card_renderer/assets/`，运行时不依赖弃用的 `render/platform/public/`。
-在仓库根运行 `.\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --sync`，
+在仓库根运行 `.\debug_tools\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --sync`，
 再使用 `--check` 校验登记图片；无需将图片复制到 `dist`。

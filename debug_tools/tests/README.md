@@ -15,15 +15,15 @@
 
 ## Python
 
-在仓库根目录安装开发依赖 `uv sync --group dev` 后运行：
+在仓库根目录安装开发依赖 `uv sync --project debug_tools --group dev` 后运行：
 
 ```shell
-python -m pytest debug_tools/tests/python -q
-python -m pytest widget_service/tests -q
+uv run --project debug_tools pytest -c debug_tools/pyproject.toml debug_tools/tests/python -q
+uv run --project debug_tools pytest -c debug_tools/pyproject.toml widget_service/tests -q
 ```
 
-仓库根目录直接执行 `python -m pytest` 会收集两套测试；在 `widget_service/` 执行时只收集微服务测试。
-跨云侧集成测试使用根目录配置提供的云侧导入路径，公共初始化固定同名 `core` 包的来源。
+从仓库根目录执行 `uv run --directory debug_tools pytest` 会收集两套测试；在 `widget_service/` 执行时只收集微服务测试。
+跨云侧集成测试使用调试工具配置提供的云侧导入路径，公共初始化固定同名 `core` 包的来源。
 CI 使用独立任务执行两套 Python 测试。`test_test_layout.py` 防止微服务用例重新导入调试工具。
 
 ## 前端与 Node

@@ -37,7 +37,7 @@
 先在一个终端启动 Python 后端：
 
 ```powershell
-uv run debug_tools --mode full --host 127.0.0.1 --port 8888
+uv run --project debug_tools debug_tools --mode full --host 127.0.0.1 --port 8888
 ```
 
 再启动 Vite：

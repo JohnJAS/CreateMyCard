@@ -9,7 +9,7 @@ TypeScript 编译器作为视觉验收依据。
 先从仓库根目录启动正式转换接口：
 
 ```bash
-uv run debug_tools --mode frontend --host 127.0.0.1 --port 8888
+uv run --project debug_tools debug_tools --mode frontend --host 127.0.0.1 --port 8888
 ```
 
 再启动独立渲染器：

@@ -315,7 +315,7 @@ qualityErrors 在路由判断时仍保留原记录；模型副本可格式化，
 | [docs/云侧方案设计.md](../../docs/云侧方案设计.md) | 保留主线新方案并同步分类校验与修复反馈边界 |
 | [render/platform/lib/compact-components.ts](../../render/platform/lib/compact-components.ts) | 原样合入主线渲染组件合同 |
 | [render/platform/tests/high-level-components.test.ts](../../render/platform/tests/high-level-components.test.ts) | 原样合入主线组件合同、修复或提示词回归 |
-| [uv.lock](../../uv.lock) | 原样合入主线依赖锁定版本 |
+| [uv.lock](../../debug_tools/uv.lock) | 原样合入主线依赖锁定版本 |
 | [widget_service/.env.example](../../widget_service/.env.example) | 原样合入主线容量提示开关及配置 |
 | [widget_service/cloud/config/config.py](../../widget_service/cloud/config/config.py) | 原样合入主线容量提示开关及配置 |
 | [widget_service/cloud/config/default_config.yaml](../../widget_service/cloud/config/default_config.yaml) | 原样合入主线容量提示开关及配置 |

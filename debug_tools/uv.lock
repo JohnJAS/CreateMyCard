@@ -190,7 +190,7 @@ dev = [
 requires-dist = [
     { name = "json5", specifier = ">=0.17.3" },
     { name = "ruamel-yaml", specifier = ">=0.18,<0.19" },
-    { name = "widget-service", editable = "widget_service" },
+    { name = "widget-service", editable = "../widget_service" },
 ]
 
 [package.metadata.requires-dev]
@@ -979,7 +979,7 @@ wheels = [
 [[package]]
 name = "widget-service"
 version = "0.1.0"
-source = { editable = "widget_service" }
+source = { editable = "../widget_service" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anyio" },

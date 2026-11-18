@@ -9,7 +9,7 @@
 端到端调试只在统一入口的 `full` 模式下可用：
 
 ```powershell
-uv run debug_tools --mode full --host 127.0.0.1 --port 8888
+uv run --project debug_tools debug_tools --mode full --host 127.0.0.1 --port 8888
 ```
 
 打开 <http://127.0.0.1:8888/debug/end-to-end>。页面同时显示以下状态时才能走完整链路：

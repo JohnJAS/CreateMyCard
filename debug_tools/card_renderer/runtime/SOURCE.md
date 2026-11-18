@@ -123,8 +123,8 @@ npm.cmd run build
 在仓库根目录运行 Python 路由回归：
 
 ```powershell
-uv run ruff check debug_tools/static_site.py debug_tools/end_to_end_debug/backend/server.py debug_tools/tests/python/test_debug_batch_testing.py
-uv run pytest debug_tools/tests/python/test_debug_batch_testing.py -q
+uv run --project debug_tools ruff check debug_tools/static_site.py debug_tools/end_to_end_debug/backend/server.py debug_tools/tests/python/test_debug_batch_testing.py
+uv run --project debug_tools pytest debug_tools/tests/python/test_debug_batch_testing.py -q
 ```
 
 最后在仓库根目录执行：
@@ -144,8 +144,8 @@ TextInput/DataModel 编辑；检查桌面与窄屏布局，并确认控制台没
 在仓库根目录执行：
 
 ```powershell
-.\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --sync
-.\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --check
+.\debug_tools\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --sync
+.\debug_tools\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --check
 ```
 
 脚本按 src 去重，先确认源文件完整，再原样补齐或覆盖
