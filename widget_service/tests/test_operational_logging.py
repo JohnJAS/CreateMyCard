@@ -169,6 +169,7 @@ async def test_edit_source_failure_keeps_cause_without_signed_url(monkeypatch):
     monkeypatch.setattr(widget_edit_service, "logger", capture)
     monkeypatch.setattr(widget_edit_service, "get_settings", lambda: SimpleNamespace(
         enable_widget_edit=True,
+        enable_semantic_widget_edit=True,
     ))
 
     def fail_load(_self, _url):

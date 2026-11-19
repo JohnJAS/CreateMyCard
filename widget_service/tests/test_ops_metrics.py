@@ -62,7 +62,8 @@ def ops_metrics_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     monkeypatch.setitem(sys.modules, "config.config", config_module)
     monkeypatch.setitem(sys.modules, "utils.base_utils", base_utils_module)
 
-    module_path = Path(__file__).resolve().parents[1] / "cloud" / "utils" / "ops_metrics.py"
+    utils_dir = Path(__file__).resolve().parents[1] / "cloud" / "utils"
+    module_path = utils_dir / "mock" / "ops_metrics.py"
     spec = importlib.util.spec_from_file_location("ops_metrics_under_test", module_path)
     assert spec is not None
     assert spec.loader is not None

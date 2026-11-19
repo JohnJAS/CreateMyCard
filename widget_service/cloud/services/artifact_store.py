@@ -14,8 +14,8 @@ from models.artifact import WidgetArtifact
 from models.service import ArtifactSaveResult
 from services.generation_trace_recorder import trace_operation, trace_step
 from services.source_artifact_repository import calculate_artifact_digest
+from utils.card_runtime import UploadFileOSMS
 from utils.file import save_txt_file
-from utils.upload_file_obs import UploadFileOSMS
 
 _MODULE = "[Artifact Store]"
 

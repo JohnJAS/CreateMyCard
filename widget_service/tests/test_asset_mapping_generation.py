@@ -17,7 +17,7 @@ from services.validator import ArtifactValidator
 from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 from test_asset_url_mapper import SRC, URL, components
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 
 # 本组验证既有创建、回退或路由合同，静态策略由专项测试覆盖。
 pytestmark = pytest.mark.usefixtures("existing_generation_policy")
@@ -101,6 +101,7 @@ def request(**updates):
 def storage(tmp_path, monkeypatch, isolated_theme_stage):
     settings = get_settings()
     monkeypatch.setattr(settings, "WORKSPACE_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "artifact_base_url", "https://artifact.test")
     monkeypatch.setattr(settings, "enable_widget_edit", True)
     # 本文件验证旧路由的素材还原/重新映射；字段补丁编辑保留已交付地址。
     monkeypatch.setattr(settings, "enable_semantic_widget_edit", True)
@@ -113,7 +114,7 @@ def storage(tmp_path, monkeypatch, isolated_theme_stage):
     )
     monkeypatch.setattr(
         "services.artifact_store.file_obs",
-        UploadFileOSMS(base_url="https://artifact.test", mock_storage_dir=tmp_path / "mock_obs"),
+        UploadFileOSMS(),
     )
     return tmp_path / "mock_obs"
 

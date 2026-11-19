@@ -26,7 +26,7 @@ from services.source_artifact_repository import (
     SourceArtifactRepository,
 )
 from services.widget_generation_service import WidgetGenerationService
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 
 
 def _base_request(**updates):
@@ -81,10 +81,7 @@ def editable_artifact_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "enable_artifact_download_mock", True)
     monkeypatch.setattr(
         "services.artifact_store.file_obs",
-        UploadFileOSMS(
-            base_url=settings.artifact_base_url,
-            mock_storage_dir=tmp_path / "mock_obs",
-        ),
+        UploadFileOSMS(),
     )
     return tmp_path / "mock_obs"
 

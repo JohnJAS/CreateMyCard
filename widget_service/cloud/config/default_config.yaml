@@ -1,5 +1,9 @@
 # 蓝区默认配置。绿区 spec 配置存在时，只读取 spec，不与本文件合并。
 ENVIRONMENT: local
+# 外网开发使用模拟凭据、上传和指标服务。
+# 内网优先读取绿区 spec；该文件与默认配置不合并，未配置本项时使用真实服务。
+# 本开关与 LOCAL_FLAG 独立，GenUI 本地调试仍连接真实 STS。
+use_mock_services: true
 
 # 每日成功次数：通过内部 API 查询及记录；绿区 spec 未配置时同样默认关闭。
 enable_daily_usage_limit: false

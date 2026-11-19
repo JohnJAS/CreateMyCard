@@ -118,7 +118,7 @@ from services.static_plan_review import (
 )
 from services.template_generation import TemplateSourceGenerator
 from services.validator import ArtifactValidator
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 _MODULE = "[Generation Service]"
 

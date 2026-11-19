@@ -22,7 +22,7 @@ from test_tool_dispatch_routes import (
     _valid_model_output,
     app,
 )
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 from ws_response_parser import parse_legacy_stream_content
 
 _OPERATION = "generateWidgetCardCompactDsl"
@@ -295,9 +295,8 @@ def test_real_generation_pipeline_retries_to_valid_artifact(monkeypatch, tmp_pat
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
     monkeypatch.setattr(settings, "enable_card_template", False)
-    monkeypatch.setattr(artifact_store, "file_obs", UploadFileOSMS(
-        base_url="https://artifact.test", mock_storage_dir=tmp_path / "mock_obs",
-    ))
+    monkeypatch.setattr(settings, "artifact_base_url", "https://artifact.test")
+    monkeypatch.setattr(artifact_store, "file_obs", UploadFileOSMS())
     calls = []
     uploads = []
     upload_calls = []

@@ -127,10 +127,10 @@ from services.retry_controller import RetryController
 from services.task_spec_builder import TaskSpecBuilder
 from services.validator import ArtifactValidator
 from services.widget_generation_service import WidgetGenerationService
-from utils.base_utils import sts_config
+from utils.card_runtime import sts_config
 from utils.download_file_from_url import download_file
 from utils.file import delete_file, save_txt_file
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 
 
 def test_websocket_handler_runs_sync_service_in_threadpool():
@@ -4616,15 +4616,13 @@ async def test_artifact_store_returns_structured_save_result(tmp_path, monkeypat
     出参：无；通过断言验证上传结果和 CardSpec 内容。
     """
     workspace_dir = tmp_path / "workspace"
-    mock_storage_dir = tmp_path / "mock_obs"
+    mock_storage_dir = workspace_dir / "mock_obs"
     monkeypatch.setattr(get_settings(), "WORKSPACE_ROOT", workspace_dir)
+    monkeypatch.setattr(get_settings(), "artifact_base_url", "https://obs.mock.local/widget")
     monkeypatch.setattr(get_settings(), "enable_sensitive_log_fields", True)
     monkeypatch.setattr(
         "services.artifact_store.file_obs",
-        UploadFileOSMS(
-            base_url="https://obs.mock.local/widget",
-            mock_storage_dir=mock_storage_dir,
-        ),
+        UploadFileOSMS(),
     )
     artifact = WidgetArtifact(
         genui="{}\n{}\n{}",
@@ -4770,7 +4768,7 @@ def test_file_utils_save_and_delete_utf8_text(tmp_path):
     assert not file_path.exists()
 
 
-def test_upload_file_osms_copies_file_and_returns_mock_url(tmp_path):
+def test_upload_file_osms_copies_file_and_returns_mock_url(tmp_path, monkeypatch):
     """验证 mock OBS 上传保留本地对象并返回访问地址。
 
     入参：
@@ -4780,12 +4778,13 @@ def test_upload_file_osms_copies_file_and_returns_mock_url(tmp_path):
     source_path = tmp_path / "source" / "artifact.md"
     mock_storage_dir = tmp_path / "mock_obs"
     save_txt_file(source_path, "artifact")
-    uploader = UploadFileOSMS(
-        base_url="https://obs.mock.local/widget",
-        mock_storage_dir=mock_storage_dir,
-    )
+    monkeypatch.setattr(get_settings(), "WORKSPACE_ROOT", tmp_path)
+    monkeypatch.setattr(get_settings(), "artifact_base_url", "https://obs.mock.local/widget")
+    uploader = UploadFileOSMS()
 
-    artifact_url = asyncio.run(uploader.upload_file(source_path))
+    artifact_url = asyncio.run(
+        uploader.upload_file(str(source_path), "cleanup.json", isPermanentStorage=True)
+    )
 
     assert artifact_url == "https://obs.mock.local/widget/artifact.md"
     assert (mock_storage_dir / "artifact.md").read_text(encoding="utf-8") == "artifact"

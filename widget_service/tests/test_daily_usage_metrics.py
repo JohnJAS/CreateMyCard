@@ -13,7 +13,7 @@ from services import daily_usage_limiter
 from services.daily_usage_limiter import DailyUsageError, DailyUsageSnapshot
 from test_daily_usage_limiter import make_limiter
 from test_daily_usage_routes import OPERATION, payload, run_route
-from utils import ops_metrics
+from utils.mock import ops_metrics
 
 
 @pytest.fixture
