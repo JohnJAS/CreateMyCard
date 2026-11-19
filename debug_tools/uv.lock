@@ -406,6 +406,15 @@ wheels = [
 ]
 
 [[package]]
+name = "lunardate"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/70/6d4d14313b5d9eab05e37c761164dd572d95386bd6238354b04b989e0eae/lunardate-0.3.0.tar.gz", hash = "sha256:ae1daa9140bb1078b2c8e2a5b1623e6f25cf0443eca9ef2d6df27a4644f25fef", size = 18571, upload-time = "2026-07-07T05:05:39.019Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/65/b0f833b26f932c865efd25790960bb83481098d66ed8b4ceac8a91859433/lunardate-0.3.0-py3-none-any.whl", hash = "sha256:68c1beaf7704c55c8a2c929d14be3ca98da55992d0ec3c0dd57eae2a5d4079fb", size = 18784, upload-time = "2026-07-07T05:05:38.029Z" },
+]
+
+[[package]]
 name = "multidict"
 version = "6.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -988,6 +997,7 @@ dependencies = [
     { name = "json-repair" },
     { name = "jsonschema" },
     { name = "loguru" },
+    { name = "lunardate" },
     { name = "openai" },
     { name = "orjson" },
     { name = "packaging" },
@@ -1012,6 +1022,7 @@ requires-dist = [
     { name = "json-repair", specifier = "==0.50.0" },
     { name = "jsonschema", specifier = ">=4.23.0" },
     { name = "loguru", specifier = ">=0.7.0" },
+    { name = "lunardate", specifier = "==0.3.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "openai", specifier = "==2.38.0" },
     { name = "orjson", specifier = ">=3.10.0" },

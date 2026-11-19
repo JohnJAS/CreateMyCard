@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 import json
+from collections import Counter
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -9,6 +11,13 @@ from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
 from api.schemas import CandidateEventCandidate, GenerateWidgetCardRequest
 from app.logger import json_for_log, logger
+from core.date_counter import (
+    CHINA_STANDARD_TIME,
+    DateCounterError,
+    DateCounterResult,
+    describe_date_counter_error,
+    resolve_date_counter,
+)
 from core.errors import ErrorCode
 from core.json_pointer import parse_json_pointer
 from models.capability import AssetCapability, DataCapability, RemovedCapability
@@ -75,10 +84,11 @@ class GenerationPreflight:
         warnings: list[PreflightIssue] = []
         removed: list[RemovedCapability] = []
 
-        effective_bindings, data_capabilities = self._resolve_data_bindings(
+        bindings_by_index, data_capabilities = self._resolve_data_bindings(
             candidate_bindings,
             issues,
         )
+        effective_bindings = list(bindings_by_index.values())
         if not issues:
             effective_bindings = complete_related_output_fields(
                 effective_bindings, data_capabilities,
@@ -92,6 +102,7 @@ class GenerationPreflight:
             removed,
         )
         effective_assets = self._resolve_assets(candidate_asset_ids, issues)
+        date_counters = self._resolve_date_counters(bindings_by_index, issues)
 
         card_spec = None
         task_spec = None
@@ -122,6 +133,7 @@ class GenerationPreflight:
             warnings=tuple(warnings),
             card_spec=card_spec,
             task_spec=task_spec,
+            date_counters=date_counters,
         )
         logger.info(
             f"{_MODULE} completed blocking_issue_count={len(issues)} "
@@ -131,12 +143,63 @@ class GenerationPreflight:
         )
         return result
 
+    def _resolve_date_counters(
+        self,
+        bindings_by_index: dict[int, CandidateDataBinding],
+        issues: list[PreflightIssue],
+    ) -> dict[str, DateCounterResult]:
+        """结构校验通过后，按原请求顺序试算所有日期计数绑定。"""
+        results: dict[str, DateCounterResult] = {}
+        if not any(
+            binding.capabilityId == "GetDateCounter" for binding in bindings_by_index.values()
+        ):
+            return results
+
+        today = datetime.now(CHINA_STANDARD_TIME).date()
+        failures: Counter[str] = Counter()
+        for index, binding in bindings_by_index.items():
+            if binding.capabilityId != "GetDateCounter":
+                continue
+            try:
+                results[binding.writeResultTo] = resolve_date_counter(
+                    binding.arguments,
+                    today=today,
+                )
+            except DateCounterError as error:
+                reason = str(error)
+                failures[reason] += 1
+                rule = describe_date_counter_error(reason)
+                path = f"/candidateDataBindings/{index}/arguments"
+                actual: object = binding.arguments
+                if rule.field_name:
+                    path = f"{path}/{rule.field_name}"
+                    actual = binding.arguments.get(rule.field_name, _MISSING)
+                issues.append(
+                    self._invalid_issue(
+                        "DATA_DATE_COUNTER_INVALID",
+                        path,
+                        rule.message,
+                        rule.expected,
+                        binding.capabilityId,
+                        actual_value=actual,
+                        repair_instruction=rule.repair_instruction,
+                        reference_source="",
+                    )
+                )
+        logger.info(
+            f"{_MODULE} date_counters_resolved success_count={len(results)} "
+            f"failure_count={failures.total()} "
+            f"error_type={DateCounterError.__name__ if failures else None} "
+            f"failure_reasons={json_for_log(dict(failures))}"
+        )
+        return results
+
     def _resolve_data_bindings(
         self,
         candidate_bindings: list[CandidateDataBinding],
         issues: list[PreflightIssue],
-    ) -> tuple[list[CandidateDataBinding], list[DataCapability]]:
-        effective_bindings: list[CandidateDataBinding] = []
+    ) -> tuple[dict[int, CandidateDataBinding], list[DataCapability]]:
+        bindings_by_index: dict[int, CandidateDataBinding] = {}
         capabilities: list[DataCapability] = []
         for index, binding in enumerate(candidate_bindings):
             base_path = f"/candidateDataBindings/{index}"
@@ -206,11 +269,11 @@ class GenerationPreflight:
                 )
             self._append_output_field_issues(binding, capability, base_path, issues)
             if len(issues) == binding_issue_count:
-                effective_bindings.append(binding)
+                bindings_by_index[index] = binding
                 capabilities.append(capability)
 
         self._append_write_conflicts(candidate_bindings, issues)
-        return effective_bindings, capabilities
+        return bindings_by_index, capabilities
 
     def _append_output_field_issues(
         self,

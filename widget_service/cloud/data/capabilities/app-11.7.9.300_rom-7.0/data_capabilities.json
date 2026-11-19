@@ -366,7 +366,7 @@
   {
     "id": "GetDateCounter",
     "type": "data",
-    "description": "计算目标日期与今天之间的自然日天数，支持公历、农历及周期重复。单次计时支持倒计时和正计时；周期计时返回距离今天或之后最近一个周期日期的天数。日期须有可靠来源，模型不自行换算公农历。",
+    "description": "计算目标日期与今天之间的自然日天数，支持公历、农历及周期重复。单次计时支持倒计时和正计时；周期计时返回距离今天或之后最近一个周期日期的天数。",
     "defaultWriteResultTo": "/data/dateCounter",
     "dependencies": {
       "requiredPackages": []
@@ -391,7 +391,7 @@
         "isLeapMonth": {
           "type": "boolean",
           "default": false,
-          "description": "目标日期是否为农历闰月，省略时为false。仅calendar=lunar时允许为true。"
+          "description": "仅calendar=lunar且一次性计时时使用，确定目标日期是否为农历闰月，省略时为false。周期性倒计时场景下在闰月/平月都会作为目标日期。"
         },
         "repeat": {
           "type": "object",
@@ -431,7 +431,7 @@
         "days": {
           "type": "integer",
           "minimum": 0,
-          "description": "今天与本次实际目标日期之间的非负自然日天数，不包含单位。大于0时可搭配relationText和“天”展示；等于0时仅展示relationText。",
+          "description": "今天与本次实际目标日期之间的非负自然日天数，不包含单位。",
           "sampleValue": 3,
           "displayUnits": [
             "天"
@@ -445,19 +445,26 @@
             "已过",
             "就是今天"
           ],
-          "description": "枚举字符串：['还剩','已过','就是今天']。根据当前日期与目标日期的关系，返回一个关联文本，必须用于直接拼接构成具有语义的短句。例如与倒计时事件名称拼接为“xx 还剩”，与天数拼接为“已有xx天”。",
+          "description": "枚举字符串：['还剩','已过','就是今天']。根据当前日期与目标日期的关系，返回一个关联文本，必须用于直接拼接构成具有语义的短句。例如与倒计时事件名称拼接为“xx 还剩”，与天数拼接为“已过xx天”。",
           "sampleValue": "还剩"
         },
         "targetDateText": {
           "type": "string",
-          "description": "本次实际目标的公历日期，格式为YYYY/MM/DD。单次计时返回目标日期对应的公历日期；周期计时返回本次选中的周期日期对应的公历日期。",
-          "sampleValue": "2026/11/09"
+          "description": "本次实际目标的日期文本，根据公历/农历返回'YYYY年MM月DD日'或者'二〇XX年X月XX'。",
+          "sampleValue": "2026年01月01日"
+        },
+        "intervalDays": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "实际目标日期与上一个目标日期之间的自然日天数差。",
+          "sampleValue": 3
         }
       },
       "required": [
         "days",
         "relationText",
-        "targetDateText"
+        "targetDateText",
+        "intervalDays"
       ]
     },
     "dataModelSkeleton": {}

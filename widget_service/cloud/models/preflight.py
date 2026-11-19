@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from core.date_counter import DateCounterResult
 from core.errors import ErrorCode
 from models.capability import AssetCapability, DataCapability, RemovedCapability
 from models.generation import CandidateDataBinding, CardSpec, EventAction, TaskSpec
@@ -49,6 +50,7 @@ class GenerationPreflightResult:
     warnings: tuple[PreflightIssue, ...]
     card_spec: CardSpec | None
     task_spec: TaskSpec | None
+    date_counters: dict[str, DateCounterResult] = field(default_factory=dict)
 
 
 class GenerationPreflightError(ValueError):

@@ -20,7 +20,7 @@ QUAD = ("top_left", "top_right", "bottom_left", "bottom_right")
 # V01/V05 同步日期计数合同，V09 同步主副标题与独立单位；其余基线保持不变。
 EXPECTED_EXAMPLES = {
     "fewshots/2x2.md:example-v01":
-        "f6b169dec3f5e108e32f880df42007e58036538c3af9ad9b2e81634f1a9552d5",
+        "9ff291449211dfc442c46a714b2df837a5e4db64bb1e18de781fe3434bd87333",
     "fewshots/2x2.md:example-v09":
         "91e7206950edc195160c57b05b375b96b26030d2f2f320c567b3925f507f5d8a",
     "fewshots/2x2.md:example-v15":

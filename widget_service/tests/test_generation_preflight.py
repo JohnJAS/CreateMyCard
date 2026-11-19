@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 import json
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from api.schemas import GenerateWidgetCardRequest
+from core.date_counter import DateCounterResult
 from core.errors import ErrorCode
 from custom.a2ui_model_client import A2UIModelClient
 from models.preflight import GenerationPreflightError
+from services import generation_preflight
 from services.capability_registry import CapabilityRegistry
 from services.compact_dsl_interface_retry import run_compact_dsl_with_retry
 from services.edit_request_normalizer import EditRequestNormalizer
@@ -17,6 +20,7 @@ from services.generation_preflight import GenerationPreflight
 from services.widget_generation_service import WidgetGenerationService
 
 REGISTRY_VERSION = "app-11.7.7.300_rom-7.0"
+DATE_COUNTER_REGISTRY_VERSION = "app-11.7.9.300_rom-7.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -37,9 +41,9 @@ def _request(**updates) -> GenerateWidgetCardRequest:
     return GenerateWidgetCardRequest(**values)
 
 
-def _run(request: GenerateWidgetCardRequest):
+def _run(request: GenerateWidgetCardRequest, *, registry_version: str = REGISTRY_VERSION):
     normalized = EditRequestNormalizer.normalize_create(request)
-    registry = CapabilityRegistry(version=REGISTRY_VERSION)
+    registry = CapabilityRegistry(version=registry_version)
     return GenerationPreflight(registry).run(normalized)
 
 
@@ -92,6 +96,163 @@ def _weather_binding(arguments=None, output_fields=None):
         "writeResultTo": "/data/weather",
         "candidateOutputFields": output_fields or ["/current/condition"],
     }
+
+
+def _date_counter_binding(path: str, arguments: dict) -> dict:
+    return {
+        "capabilityId": "GetDateCounter",
+        "arguments": arguments,
+        "writeResultTo": path,
+        "candidateOutputFields": ["/days"],
+    }
+
+
+def test_preflight_resolves_date_counters_with_one_china_date_and_preserves_specs(monkeypatch):
+    utc_instant = datetime(2026, 2, 16, 16, 0, tzinfo=UTC)
+    now = Mock(side_effect=utc_instant.astimezone)
+    monkeypatch.setattr(generation_preflight, "datetime", Mock(now=now))
+    bindings = [
+        _date_counter_binding("/data/festival", {"targetDate": "2026-01-01", "calendar": "lunar"}),
+        _date_counter_binding(
+            "/data/anniversary",
+            {"targetDate": "2026-02-16", "repeat": {"unit": "week"}},
+        ),
+        _weather_binding(),
+    ]
+
+    result = _run(
+        _request(prdVer="11.7.9.300", candidateDataBindings=bindings),
+        registry_version=DATE_COUNTER_REGISTRY_VERSION,
+    )
+
+    assert not result.blocking_issues
+    assert not result.warnings
+    now.assert_called_once_with(timezone(timedelta(hours=8)))
+    assert result.date_counters == {
+        "/data/festival": DateCounterResult("today", 0, date(2026, 2, 17)),
+        "/data/anniversary": DateCounterResult("countdown", 6, date(2026, 2, 23)),
+    }
+    assert result.card_spec is not None
+    assert result.task_spec is not None
+    card_payload = result.card_spec.model_dump(mode="json")
+    task_payload = result.task_spec.model_dump(mode="json")
+    for payload in (card_payload, task_payload):
+        assert "date_counters" not in payload
+    card_bindings = card_payload.get("dataBindings")
+    assert isinstance(card_bindings, list)
+    assert len(card_bindings) == len(bindings)
+    for card_binding, original in zip(card_bindings, bindings, strict=True):
+        assert card_binding.get("arguments") == original.get("arguments")
+        assert card_binding.get("writeResultTo") == original.get("writeResultTo")
+    schema = task_payload.get("dataModelSchema")
+    assert isinstance(schema, dict)
+    data = schema.get("data")
+    assert isinstance(data, dict)
+    assert {"festival", "anniversary"} <= data.keys()
+    for root in ("festival", "anniversary"):
+        date_fields = data.get(root)
+        assert isinstance(date_fields, dict)
+        days = date_fields.get("days")
+        assert isinstance(days, dict)
+        assert days.get("sampleValue") == 3
+
+
+def test_preflight_reports_all_date_counter_failures_before_building_specs(monkeypatch):
+    utc_instant = datetime(2026, 2, 16, 16, 0, tzinfo=UTC)
+    now = Mock(side_effect=utc_instant.astimezone)
+    monkeypatch.setattr(generation_preflight, "datetime", Mock(now=now))
+    info = Mock()
+    monkeypatch.setattr(generation_preflight.logger, "info", info)
+    bindings = [
+        _weather_binding(),
+        _date_counter_binding("/data/wrongFormat", {"targetDate": "2026/02/01"}),
+        _date_counter_binding("/data/wrongDate", {"targetDate": "2026-13-01"}),
+        _date_counter_binding("/data/wrongLeap", {"targetDate": "2026-02-01", "isLeapMonth": True}),
+        _date_counter_binding("/data/wrongYear", {"targetDate": "2100-01-01", "calendar": "lunar"}),
+        _date_counter_binding(
+            "/data/noNext",
+            {"targetDate": "2026-02-01", "repeat": {"unit": "day", "interval": 10**9}},
+        ),
+        _date_counter_binding("/data/valid", {"targetDate": "2026-02-17"}),
+    ]
+
+    result = _run(
+        _request(prdVer="11.7.9.300", candidateDataBindings=bindings),
+        registry_version=DATE_COUNTER_REGISTRY_VERSION,
+    )
+
+    now.assert_called_once_with(timezone(timedelta(hours=8)))
+    assert result.card_spec is None
+    assert result.task_spec is None
+    assert not result.warnings
+    fields = ["targetDate", "targetDate", "isLeapMonth", "targetDate", "repeat"]
+    paths = [f"/candidateDataBindings/{i}/arguments/{name}" for i, name in enumerate(fields, 1)]
+    assert [issue.path for issue in result.blocking_issues] == paths
+    for issue in result.blocking_issues:
+        assert issue.code == "DATA_DATE_COUNTER_INVALID"
+        assert issue.agentAction == "FIX_AND_RETRY"
+        assert issue.retryable
+        assert issue.message and issue.expected and issue.repairInstruction
+    assert "1900 至 2099" in result.blocking_issues[3].expected
+    assert "先向用户确认" in result.blocking_issues[4].repairInstruction
+    details = GenerationPreflightError(result).details()
+    assert details.get("modelCalled") is False
+    assert details.get("requiredActions") == ["FIX_AND_RETRY"]
+    assert "2026/02/01" not in str(details)
+    assert "2026-13-01" not in str(details)
+    messages = [str(call.args[0]) for call in info.call_args_list]
+    (message,) = [line for line in messages if "date_counters_resolved" in line]
+    assert "success_count=1" in message
+    assert "failure_count=5" in message
+    assert "error_type=DateCounterError" in message
+    assert "invalid_target_date" in message
+    assert "2026-" not in message
+
+
+def test_preflight_keeps_original_date_counter_paths_after_filtering(monkeypatch):
+    utc_instant = datetime(2026, 2, 16, 16, 0, tzinfo=UTC)
+    now = Mock(side_effect=utc_instant.astimezone)
+    monkeypatch.setattr(generation_preflight, "datetime", Mock(now=now))
+    valid = _date_counter_binding("/data/valid", {"targetDate": "2026-02-17"})
+    missing_date = _date_counter_binding("/data/missingDate", {})
+    invalid_date = _date_counter_binding("/data/invalidDate", {"targetDate": "2026-13-01"})
+    result = _run(
+        _request(prdVer="11.7.9.300", candidateDataBindings=[missing_date, valid, invalid_date]),
+        registry_version=DATE_COUNTER_REGISTRY_VERSION,
+    )
+
+    assert [(issue.code, issue.path) for issue in result.blocking_issues] == [
+        ("DATA_ARGUMENT_SCHEMA_INVALID", "/candidateDataBindings/0/arguments/targetDate"),
+        ("DATA_DATE_COUNTER_INVALID", "/candidateDataBindings/2/arguments/targetDate"),
+    ]
+    assert result.date_counters == {"/data/valid": DateCounterResult("today", 0, date(2026, 2, 17))}
+    assert result.card_spec is None
+    assert result.task_spec is None
+    now.assert_called_once_with(timezone(timedelta(hours=8)))
+
+
+def test_preflight_projects_date_counter_interval_and_localized_target():
+    binding = _date_counter_binding("/data/counter", {"targetDate": "2026-01-01"})
+    binding["candidateOutputFields"] = ["/intervalDays", "/targetDateText"]
+
+    result = _run(
+        _request(prdVer="11.7.9.300", candidateDataBindings=[binding]),
+        registry_version=DATE_COUNTER_REGISTRY_VERSION,
+    )
+
+    assert not result.blocking_issues
+    assert result.task_spec is not None
+    data = result.task_spec.dataModelSchema.get("data")
+    assert isinstance(data, dict)
+    counter = data.get("counter")
+    assert isinstance(counter, dict)
+    interval = counter.get("intervalDays")
+    assert isinstance(interval, dict)
+    assert interval.get("type") == "integer"
+    assert interval.get("sampleValue") == 3
+    target = counter.get("targetDateText")
+    assert isinstance(target, dict)
+    assert target.get("sampleValue") == "2026年01月01日"
 
 
 def test_preflight_accepts_weather_without_district_and_builds_specs():
@@ -426,8 +587,26 @@ def test_preflight_rejects_unknown_asset():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("app_version", "binding", "field_path"),
+    [
+        (
+            "11.7.5.205",
+            _weather_binding(arguments={"districtName": "滨江区", "prefectureName": ""}),
+            "prefectureName",
+        ),
+        (
+            "11.7.9.300",
+            _date_counter_binding("/data/dateCounter", {"targetDate": "2026-13-01"}),
+            "targetDate",
+        ),
+    ],
+)
 async def test_generation_preflight_failure_does_not_call_model_or_start_directive(
     monkeypatch,
+    app_version,
+    binding,
+    field_path,
 ):
     def unexpected_generate(*_args, **_kwargs):
         pytest.fail("an invalid candidate plan must not reach the model")
@@ -437,9 +616,9 @@ async def test_generation_preflight_failure_does_not_call_model_or_start_directi
 
     monkeypatch.setattr(A2UIModelClient, "generate", unexpected_generate)
     request = _request(
-        candidateDataBindings=[
-            _weather_binding(arguments={"districtName": "滨江区", "prefectureName": ""})
-        ]
+        prdVer=app_version,
+        device={"romVersion": "7.0"},
+        candidateDataBindings=[binding],
     )
 
     async def generate(attempt_request):
@@ -464,7 +643,7 @@ async def test_generation_preflight_failure_does_not_call_model_or_start_directi
     assert "修正全部 issues" in instruction
     issues = details.get("issues")
     assert isinstance(issues, list) and len(issues) == 1
-    assert issues[0].get("path") == "/candidateDataBindings/0/arguments/prefectureName"
+    assert issues[0].get("path") == f"/candidateDataBindings/0/arguments/{field_path}"
     assert "滨江区" not in str(details)
 
 
