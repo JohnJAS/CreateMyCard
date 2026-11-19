@@ -247,7 +247,7 @@ class Settings(BaseSettings):
         default=CONFIG.get("widget_edit_max_repair_attempts", 3), ge=0, le=5,
     )
     enable_static_content_generation_policy: bool = (
-        CONFIG.get("enable_static_content_generation_policy", "false") == "true"
+        CONFIG.get("enable_static_content_generation_policy", "true") == "true"
     )
     static_content_max_input_chars: int = Field(
         default=CONFIG.get("static_content_max_input_chars", 16000),
