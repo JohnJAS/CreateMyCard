@@ -718,14 +718,8 @@ def trace_flow(function):
         token = _FLOW_CONTEXT.set(flow)
         failure: BaseException | None = None
         try:
-            policy = args[2] if len(args) > 2 else kwargs.get("policy")
-            branch = "fusion"
-            if getattr(policy, "single_step", False):
-                branch = "single_step_create"
-                if getattr(policy, "source_format", "") == "single-step-edit-patch":
-                    branch = "single_step_edit"
             with (
-                trace_details(generationBranch=branch),
+                trace_details(generationBranch="fusion"),
                 trace_attempt(generation=trace_next_attempt("generationBranches")),
                 trace_span("generation.branch", stage="generation.branch", kind="group") as span,
             ):
@@ -873,7 +867,6 @@ def _event_category(event: str, stage: str | None) -> str:
         return "validation" if event == "theme.validation" else "transform"
     source = f"{event}.{stage or ''}".casefold()
     mappings = (
-        ("transform", ("single_step.edit", "single_step.fallback")),
         ("request", ("request", "interface")),
         ("protocol", ("protocol", "registry")),
         ("source", ("source_artifact",)),

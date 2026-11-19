@@ -4,7 +4,6 @@ import copy
 
 from app.logger import json_for_log, logger
 from services.card_validation.edit_validation.structure import validate_edit_structure
-from services.single_step_edit import _same
 from services.widget_edit_contract import (
     _TOP_LAYOUT_FIELDS,
     EditIntent,
@@ -15,6 +14,7 @@ from services.widget_edit_contract import (
     dump_rows,
     scope_ids,
 )
+from services.widget_edit_utils import _same
 
 
 def recover_layout(original: str, candidate: str, intent: EditIntent) -> str:

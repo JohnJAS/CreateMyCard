@@ -393,7 +393,6 @@ async def test_real_plan_dsl_pipeline_keeps_call_budget_and_click_presentation(
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", False)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(settings, "enable_validation_failure_retry", True)
     monkeypatch.setattr(
         WidgetGenerationService, "_enable_card_template", staticmethod(lambda: False),

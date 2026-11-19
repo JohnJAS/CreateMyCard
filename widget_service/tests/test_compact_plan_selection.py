@@ -112,8 +112,6 @@ def test_capacity_recovery_uses_final_visible_facts_and_all_actions() -> None:
     )
 
     retained, omitted = compact_plan_recovery_facts(source, plan, task)
-    plan["composition"] = {"layout": "W-content-side-slots"}
-    plan["compositionNotes"] = ["旧布局不可继续使用"]
     recovery_plan = build_compact_recovery_plan(plan, retained)
 
     assert [(fact.target, fact.value) for fact in retained] == [
@@ -125,8 +123,6 @@ def test_capacity_recovery_uses_final_visible_facts_and_all_actions() -> None:
     ]
     assert recovery_plan is not None
     assert recovery_plan["info_required"] == [facts[0], facts[2]]
-    assert "composition" not in recovery_plan
-    assert "compositionNotes" not in recovery_plan
 
 
 def test_capacity_recovery_retains_all_facts_visible_in_final_failed_dsl() -> None:
@@ -362,4 +358,4 @@ def test_effective_plan_contract_distinguishes_requested_facts_and_implicit_entr
     assert "不先全选，再指望 DSL 或修复删减" in prompt
     assert "只读详情候选不自动入选" in prompt
     assert "不因非 Action 事实至少两项就推荐 TableText" in prompt
-    assert "仅 Schema 含 composition 时" in prompt
+    assert "仅 Schema 含 composition 时" not in prompt

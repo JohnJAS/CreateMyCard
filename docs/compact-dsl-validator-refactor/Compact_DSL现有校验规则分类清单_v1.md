@@ -207,8 +207,8 @@ PathBinding 的 string/number/integer 类型相容性仍归属语义／数据绑
 Plan 事实；进入第一次模型 Repair 后，compact_plan.py 仅将非 Action 展示事实缺失转为
 warning，2×2 与 2×4 共用该逻辑。此项属于生成编排层的降级政策，不新增语法／语义校验器。
 Action 事实、事件 handler、动作素材、动作槽及其它 Compact 校验不降级。
-enable_drop_plan_fact_validation 默认关闭；开启时在 Repair 阶段恢复严格事实覆盖，仅保留程序明确
-授权的 Drop 豁免范围。
+2026-11-18：删除 Repair 阶段恢复严格事实覆盖的开关与专属实现；固定沿用首次严格、修复后非 Action
+缺失记 warning 的阶段政策，程序明确授权的 Drop 仍单独登记，不扩大删除范围。
 
 2026-10-19：修正首次 Plan 静态事实覆盖的严重程度。`compact_plan.py` 不再将 `text`
 未完整可见无条件写为 warning；首次 DSL 评估与数据事实一样生成覆盖 error，进入
@@ -289,7 +289,7 @@ warning；共享 Runtime 继续确定性展开原顺序，版本化物理布局�
 本轮继续融合 PR489/492：多段时长选型归入 `semantic/display.py`，完整文案及标签时长组合宽度归入
 `semantic/layout/text_width.py`，TextBlock 标签只在同项 Recipe 内查找。这些新错误保持主线原文路径；
 该次融合的 30 个结构化错误码不变；后续经确认的规则恢复见下文。修复范围由现有 `repairStrategy` 编排决定；可选 fixHint 不承担重试路由，
-`compositionRecovery` 遵守主线运行时容量提示开关，关闭时不沿用历史参考。
+可选运行时容量摘要与 `compositionRecovery` 生成已下线，不再注入组合搜索参考；正式校验及修复路由保留。
 
 以 main `a42d86a5` 为行为基线，当前模块及规则去向见 [Fusion 融合记录](Compact_DSL_Fusion融合记录.md)。
 后续章节中的 153 个历史观察位置、147 个旧错误码、旧 W9/S4/ActionUnit 目录及旧版验证数量均属于融合前快照，
@@ -298,7 +298,7 @@ warning；共享 Runtime 继续确定性展开原顺序，版本化物理布局�
 公开入口新增参数是主线 protocol_profile、layout_scope、enforce_model_component_types 与重构
 original_source、repair_context 的并集，默认行为、错误顺序、去重及 warning 保持主线。
 高阶组件展开前后使用独立树；展开事实标为 expanded，没有可靠来源映射时不发送原文位置。
-Plan 独立错误码、Occupancy、Alternatives、previousFailures、compositionRecovery 和 Trace 均保留。
+Plan 独立错误码、Occupancy、Alternatives、previousFailures 和 Trace 均保留；组合恢复参考已下线。
 提示词说明只写入 fusion/prompt_source/repair.md，不恢复已删除的旧 REPAIR_SYSTEM_PROMPT.md。
 高度建议要求保留固定设计量，重组合法布局；新增规则仍按约束性质归类并复用已有运行时合同。
 

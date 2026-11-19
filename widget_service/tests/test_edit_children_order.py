@@ -5,7 +5,6 @@ import json
 import pytest
 
 from core.errors import GenerationStatus
-from services.single_step_edit import source_digest
 from services.widget_edit_contract import (
     ChildrenOrder,
     apply_children_orders,
@@ -14,6 +13,7 @@ from services.widget_edit_contract import (
     validate_edit_diff,
     validate_intent,
 )
+from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 from test_semantic_widget_edit import _intent, _nodes, _request, _rows
 from test_semantic_widget_edit import edit_run as edit_run

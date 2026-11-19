@@ -2,14 +2,10 @@
 
 OPERATION_TITLES = {
     "generation.branch": "生成分支",
-    "fallback": "单步兜底阶段",
     "template.generate": "模板生成",
     "theme": "主题处理",
     "theme.selection": "选择与应用主题",
     "theme.validation": "主题最终校验",
-    "single_step.fallback": "单步新建兜底",
-    "single_step.edit.apply": "解析并应用编辑补丁",
-    "single_step.processing": "单步转换",
     "dsl.source_processing": "处理生成源",
     "dsl.semantic_layout.expanded": "展开语义布局",
     "dsl.outer_recomposition.completed": "调整外层组合",
@@ -73,8 +69,6 @@ CONTENT_LABELS = {
     "outer_recomposition_output": "外层调整后 DSL",
     "repair_strategy": "定向修复策略",
     "omitted_requirements": "最终省略的信息",
-    "single_step_fallback_context": "单步兜底上下文",
-    "single_step_failed_compact_source": "兜底前失败 DSL",
     "edit_patch_audit": "编辑补丁审计",
     "template_source": "模板生成结果",
     "raw_request": "原始请求",

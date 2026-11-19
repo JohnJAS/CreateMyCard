@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from services.single_step_edit import source_digest
 from services.widget_edit_contract import EditIntent, edit_contract
+from services.widget_edit_utils import source_digest
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "data/protocol_profiles/semantic-widget-edit"
 _COMMON_FILES = ("protocol.md", "design.md", "examples.md")

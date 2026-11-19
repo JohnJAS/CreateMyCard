@@ -77,7 +77,7 @@ async def test_spare_plan_attempt_preserves_core_and_conversation(response):
         return json.dumps({"name": "submit_card_plan", "arguments": {"info_required": facts}})
 
     result = await review_list_plan(
-        original, conversation, task, targets, require_composition=False, generate=generate,
+        original, conversation, task, targets, generate=generate,
     )
     assert len(calls) == 1
     assert all(path in calls[0][-1].get("content", "") for path in targets)

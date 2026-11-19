@@ -16,9 +16,6 @@ daily_usage_api_snapshot_path: /genui-agent/v1/daily-usage/snapshot
 daily_usage_api_record_path: /genui-agent/v1/daily-usage/record-success
 daily_usage_api_timeout_seconds: 3.0
 enable_photo_background_theme: true
-enable_subjectless_wide_theme: false
-enable_square_music_photo_expansion: false
-enable_square_photo_expansion: false
 
 hag_slb_url: ""
 osms_prepare_url: ""
@@ -48,13 +45,7 @@ ai_widget_data_huashan_enable: false
 enable_default_capability_registry_fallback: true
 enable_default_protocol_profile_fallback: true
 enable_validation_failure_retry: true
-# 融合实际修满5次仍失败后才可单步兜底；独立默认关闭，不改变原修复策略。
-enable_single_step_generation_fallback: false
-# 二次编辑默认走单步；关闭此项恢复原编辑路由，关闭总开关拒绝所有编辑。
-enable_single_step_widget_edit: true
 enable_widget_edit: true
-# Repair 后是否继续严格校验 Plan 展示事实；动作覆盖始终校验。
-enable_drop_plan_fact_validation: false
 # 静态内容只向预检通过且没有动态候选的普通 Fusion 创建开放。
 enable_static_content_generation_policy: true
 static_content_max_input_chars: 16000
@@ -71,10 +62,6 @@ compact_dsl_argument_repair_max_attempts: 2
 enable_compact_dsl_interface_retry: true
 # 是否在 Design Compact 的 DSL 生成阶段加载同尺寸 Few-shot；Plan 阶段始终不加载。
 enable_design_compact_few_shots: true
-# 默认关闭；开启后在 Plan 之后按布局、信息密度、必要动作和组件候选检索最多 4 例。
-enable_design_compact_few_shot_selection: false
-# 是否向 Plan 与 DSL 模型提示词追加由布局合同和视觉 Recipe 生成的运行时容量摘要。
-enable_design_compact_runtime_prompt_context: false
 # 2x4 校验失败后先尝试无损确定性紧凑候选，再沿用模型修复。
 enable_design_compact_deterministic_repair: true
 # 首次生成之外的额外重试次数；0 不重试，1 表示最多执行两次生成。必须为非负整数。

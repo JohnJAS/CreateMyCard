@@ -30,7 +30,6 @@ from services.generation_preflight import GenerationPreflight
 from services.generation_trace_recorder import trace_record, trace_span
 from services.operational_logging import exception_summary
 from services.post_layout_theme_registry import registered_themes
-from services.single_step_edit import _load_json
 from services.source_artifact_repository import SourceArtifactError, SourceArtifactRepository
 from services.widget_edit_contract import (
     EditIntent,
@@ -42,11 +41,12 @@ from services.widget_edit_contract import (
 )
 from services.widget_edit_output import normalize_edit_output
 from services.widget_edit_prompt import execution_prompt, intent_prompt, repair_feedback
+from services.widget_edit_utils import _load_json
 
 if TYPE_CHECKING:
     from services.widget_generation_service import WidgetGenerationService
 
-_PROFILE = {"id": "semantic-widget-edit", "format": "raw-json", "singleStepOutput": False}
+_PROFILE = {"id": "semantic-widget-edit", "format": "raw-json"}
 
 
 def _log_edit(event: str, *, level: str = "INFO", **details: Any) -> None:
@@ -70,7 +70,7 @@ class WidgetEditService:
         before_model_call: Callable[[WidgetSize], Awaitable[None]] | None = None,
     ) -> GenerateWidgetCardResponse:
         settings = get_settings()
-        if not settings.enable_widget_edit:
+        if not settings.enable_widget_edit or not settings.enable_semantic_widget_edit:
             return self._response(request, GenerationStatus.UNSUPPORTED,
                                   "当前暂未开放卡片继续编辑能力。", ErrorCode.WIDGET_EDIT_DISABLED)
         if not policy.supports_edit:
@@ -385,7 +385,7 @@ def _retain_source_assets(original: WidgetArtifact, candidate: WidgetArtifact) -
 
 def _same_business_candidates(original: WidgetArtifact, request: GenerateWidgetCardRequest) -> bool:
     """视觉编辑不接受候选替换；已有参数修改保留相同能力和写入路径。"""
-    from services.single_step_edit import _same
+    from services.widget_edit_utils import _same
 
     plan = original.generationPlan
     old_bindings = [(item.capabilityId, item.writeResultTo) for item in plan.candidateDataBindings]
@@ -410,7 +410,7 @@ def _same_business_candidates(original: WidgetArtifact, request: GenerateWidgetC
 
 def _runtime_changes(original: WidgetArtifact, preflight: GenerationPreflightResult,
                      request: GenerateWidgetCardRequest) -> dict:
-    from services.single_step_edit import _same
+    from services.widget_edit_utils import _same
 
     changes: dict = {}
     if preflight.card_spec is None:

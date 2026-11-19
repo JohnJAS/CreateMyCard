@@ -103,18 +103,8 @@ dataId/text 不推荐按钮，actionId 仅推荐合法动作组件。标题按�
 S-content-dual-action 的 actions-only 变体，直接放两个 CardButton，不补内容槽或占位正文。
 若有任何 dataId/text 展示事实，使用带内容的标准变体并按完整内容核算容量。
 
-actions 按 info_required 动作顺序逐项分配：先结合动作对象、完整操作语义和候选 description，选择语义最匹配的 assetId；不同动作允许复用同一准确素材。无任何准确匹配才填 null 及具体 reason。CardButton 的 icon 可选：assetId 非空时必须使用对应真实素材；assetId 为 null 或本轮没有素材候选时仍可把 CardButton 放入 componentHints 或 composition，原始 DSL 省略业务 icon，转换器固定展示 `resources/base/media/ic_fallback_light.svg`，不规划额外圆形、分隔线或占位。之后 title 只能从未被卡片其它内容使用且语义匹配的候选中选择；有匹配不能仅以“装饰/空间紧张”填 null。不得为标题牺牲准确的内容图标。SingleLineTitle 无图标按12vp、带图标按20vp计入容量。
+actions 按 info_required 动作顺序逐项分配：先结合动作对象、完整操作语义和候选 description，选择语义最匹配的 assetId；不同动作允许复用同一准确素材。无任何准确匹配才填 null 及具体 reason。CardButton 的 icon 可选：assetId 非空时必须使用对应真实素材；assetId 为 null 或本轮没有素材候选时仍可把 CardButton 放入 componentHints，原始 DSL 省略业务 icon，转换器固定展示 `resources/base/media/ic_fallback_light.svg`，不规划额外圆形、分隔线或占位。之后 title 只能从未被卡片其它内容使用且语义匹配的候选中选择；有匹配不能仅以“装饰/空间紧张”填 null。不得为标题牺牲准确的内容图标。SingleLineTitle 无图标按12vp、带图标按20vp计入容量。
 整卡详情例外不需要按钮图标：保留动作的分配项并填 null，reason 说明整卡承载；该素材未被按钮消费，仍可按语义分配给标题。最终以服务端接受结果为准，不因此给其它动作省略图标。
-
-## 4. 实例安排（仅 Schema 含 composition 时）
-
-- layout/variant 选择一个完整合法父布局及从1开始的变体；动作数适配。
-- regions.path 使用从 root 开始的实际子序号；referenceWidth/referenceHeight 是扣除内边距和动作后的真实容量，不输出固定几何。
-- groups 每项代表一个组件实例。factIndexes 为 info_required 的0起始索引；placements 逐项对应真实可见 Prop，如 items[0].value、title、label。
-- 同一事件要素在同一 item；每条 dataId 事实仅一个可见 placement；进度实例也不把同一事实同时分配给 value 和 displayValue。静态单位不占事实索引，独立单位字段才有自己的索引。
-- 装饰 SingleLineTitle 可用空 factIndexes/placements，仍计高度；其它组件不得空事实。各事实和动作落在唯一正确对象，不能在父区和子区重复安排同一槽。
-- 填实际 component 及必要 variant/density/columns/lines/labelLines，按组件规格和布局预算合计。双列分别放下完整标签和值；长值用合法单列/多行。SecondaryBody 仍须搭配整卡核心组件。
-- 必填 Props、角色数及全部事实齐全；S-title-anchor 独立支撑不能为零。TextBlock 项数由 Recipe 和实际槽宽共同决定，组件固有上限不等于当前可用容量；放不下时保留全部事实并重组选型。任一区 remainingHeight 为负则重组，不靠权重、缩字或遗漏闭合。
 
 提交前核对：事实来源准确、原子项无遗漏、不重复；候选实际可承载；完整序列化 name/arguments，不在已闭合对象后追加重复括号。
 <!-- /prompt:contract -->

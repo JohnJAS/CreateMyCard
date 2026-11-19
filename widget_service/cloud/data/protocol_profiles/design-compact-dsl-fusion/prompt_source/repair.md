@@ -32,7 +32,6 @@ Plan 恰好仅含一个必要动作且至多一个明确标题事实时，保持
 | Occupancy | 子区实际最小占高及间距，找到共同超预算来源 |
 | Alternatives | 一个完整合法变体的全部不匹配项，不能只修 closest 的几项或混用变体 |
 | previousFailures/noProgress/consecutiveFailures | 判断是否重复根因；noProgress 或连续失败≥2时不只改 ID、颜色或无关属性 |
-| compositionRecovery/组合工作表 | 仅本轮实际提供时使用；没有时按原始组件合同和实际反馈核算 |
 | repairObligations | 已接受合同的事实、动作和素材摘要；同时核对全部保留项，不改变校验或删除权限 |
 | jointRecomposition | 请求内跨类别失败和旧拓扑复现记录；错误类别切换不代表原容量问题已解决 |
 

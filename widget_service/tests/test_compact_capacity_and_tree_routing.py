@@ -4,11 +4,9 @@ import pytest
 
 import services.compact_component_runtime as component_runtime
 import services.compact_composition_context as composition_context
-from config.config import get_settings
 from models.generation import TaskSpec
 from services.compact_component_runtime import text_block_width_contract
 from services.compact_composition_context import compact_text_block_capacity_context
-from services.compact_composition_planner import _text_block
 from services.compact_repair_strategy import CompactRepairStrategyTracker
 from services.prompt_builder import PromptBuilder
 
@@ -24,23 +22,9 @@ def test_text_block_capacity_depends_on_available_width(width: float, capacity: 
     assert contract.maximum_items == 4
 
 
-@pytest.mark.parametrize("count", [2, 3, 4])
-def test_planner_uses_same_recipe_minimum_width(count: int) -> None:
-    items = []
-    for index in range(count):
-        items.append({"index": index, "sample": "1", "object": "test", "fieldContract": {}})
-    group = _text_block("2x4", items)
-    assert group.get("minimumWidth") == text_block_width_contract().required_width(count)
-    assert group.get("factIndexes") == list(range(count))
-
-
-@pytest.mark.parametrize("runtime_context", [False, True])
 def test_plan_and_generation_always_receive_slot_capacity(
-    monkeypatch, runtime_context: bool,
+    monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        get_settings(), "enable_design_compact_runtime_prompt_context", runtime_context
-    )
     task = TaskSpec(size="2x4", userQuery="显示设备状态", dataModelSchema={"data": {}})
     builder = PromptBuilder()
     prompt = builder.build_design_compact(task, "创建合同")
@@ -123,7 +107,7 @@ def test_non_tree_failures_keep_existing_route(code: str, message: str, category
     assert directive.category == category
 
 
-def test_recipe_changes_reach_capacity_planner_and_prompt(monkeypatch) -> None:
+def test_recipe_changes_reach_capacity_contract_and_prompt(monkeypatch) -> None:
     payload = component_runtime.load_visual_recipe_contract()
     components = payload.get("components")
     assert isinstance(components, dict)
@@ -148,11 +132,6 @@ def test_recipe_changes_reach_capacity_planner_and_prompt(monkeypatch) -> None:
     monkeypatch.setattr(component_runtime, "_load_contract", lambda: payload)
     contract = text_block_width_contract()
     assert contract.required_width(4) == 356.0
-    items = []
-    for index in range(4):
-        items.append({"index": index, "sample": "1", "object": "test", "fieldContract": {}})
-    group = _text_block("2x4", items)
-    assert group.get("minimumWidth") == 356.0
     assert "4项至少356vp" in compact_text_block_capacity_context("2x4")
 
 

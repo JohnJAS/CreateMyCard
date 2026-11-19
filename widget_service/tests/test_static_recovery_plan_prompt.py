@@ -34,7 +34,6 @@ def offline(monkeypatch):
     # 底层 socket 由离线运行器管控；不包装 Windows asyncio 的唤醒配对。
     monkeypatch.setattr(httpx.Client, "request", reject_network)
     monkeypatch.setattr(httpx.AsyncClient, "request", reject_network)
-    monkeypatch.setattr(get_settings(), "enable_design_compact_runtime_prompt_context", False)
 
 
 def context(*, capacity_recovery=True):
@@ -177,11 +176,7 @@ def test_first_static_schema_allows_selection_but_recovery_is_frozen():
     assert "全部原文清单" not in json.dumps(existing, ensure_ascii=False)
 
 
-@pytest.mark.parametrize("runtime_context", [False, True])
-def test_static_recovery_keeps_explicit_scope_without_composition(monkeypatch, runtime_context):
-    monkeypatch.setattr(
-        get_settings(), "enable_design_compact_runtime_prompt_context", runtime_context,
-    )
+def test_static_recovery_keeps_explicit_scope_without_composition(monkeypatch):
     messages = prompt(STATIC_CONTENT_POLICY, context())
     assert scope_from(messages) == {
         "requiredFacts": [

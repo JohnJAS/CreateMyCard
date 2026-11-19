@@ -12,7 +12,6 @@ from api.schemas import CandidateEventCandidate, GenerateWidgetCardRequest
 from models.capability import EventCapability
 from services.capability_registry import CapabilityRegistry
 from services.card_validation import validate_card
-from services.compact_composition_context import repair_action_labels
 from services.compact_dsl_a2ui_converter import parse_compact_dsl_rows
 from services.compact_high_level_components import ComponentRow
 from services.compact_plan import compact_plan_coverage_errors, parse_compact_plan_call
@@ -202,7 +201,6 @@ def test_pipeline_preserves_optional_form_through_plan_assets_and_final_validati
     expected = _handler(registry, event_id, expected_flag)
     inputs = _pipeline_inputs(expected, actual, size)
     assert not compact_plan_coverage_errors(inputs.source, inputs.plan, inputs.task)
-    assert repair_action_labels(inputs.source, inputs.task).get("switch") == "开关"
     result = DesignCompactProcessor().process(inputs.source, DslProcessingContext(
         size=size, card_spec={"suggestSize": size}, task_spec=inputs.task, protocol_profile={},
         compact_plan=inputs.plan,
@@ -229,7 +227,6 @@ def test_binding_repair_does_not_replace_invalid_flag_with_candidate(
     inputs = _pipeline_inputs(
         _handler(registry, event_id), _handler(registry, event_id, flag), "2x2",
     )
-    assert "switch" not in repair_action_labels(inputs.source, inputs.task)
     result = DesignCompactProcessor().process(inputs.source, DslProcessingContext(
         size="2x2", card_spec={"suggestSize": "2x2"}, task_spec=inputs.task, protocol_profile={},
         compact_plan=inputs.plan, layout_scope="S-content-dual-action",
@@ -369,7 +366,6 @@ async def test_registered_optional_switch_completes_service_without_repair(
     monkeypatch.setattr(settings, "enable_static_content_generation_policy", False)
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(A2UIModelClient, "generate", generate)
     monkeypatch.setattr(WidgetGenerationService, "_enable_card_template", lambda _self: False)
     monkeypatch.setattr(ArtifactStore, "save", lambda *_args: ArtifactSaveResult(

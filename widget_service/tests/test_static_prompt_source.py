@@ -271,7 +271,6 @@ def test_complete_capacity_and_shared_rules_are_loaded_once_across_history(monke
     from config.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_design_compact_few_shots", True)
-    monkeypatch.setattr(get_settings(), "enable_design_compact_few_shot_selection", False)
     task = TaskSpec(userQuery="制作备忘：带证件", size="2x2", dataModelSchema={"data": {}})
     builder = PromptBuilder()
     with content_policy_scope(STATIC_CONTENT_POLICY):

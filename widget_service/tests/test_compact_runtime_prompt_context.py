@@ -1,11 +1,10 @@
-"""Design Compact 运行时容量提示上下文开关回归。"""
+"""Plan、DSL 与容量恢复沿用固定最小合同。"""
 
 import json
 from typing import Any
 
 import pytest
 
-import services.prompt_builder as prompt_builder_module
 from config.config import get_settings
 from models.generation import CompactDslRecoveryFact, CompactDslRetryContext, TaskSpec
 from services.prompt_builder import PromptBuilder
@@ -55,26 +54,12 @@ def _plan_tool_from_prompt(prompt: list[dict[str, str]]) -> dict[str, Any]:
     return tool
 
 
-def test_disabled_runtime_prompt_context_omits_plan_dsl_and_recovery(
+def test_plan_and_dsl_do_not_require_runtime_composition(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     settings = get_settings()
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(settings, "enable_design_compact_few_shots", False)
 
-    def fail_if_called(*_args: Any, **_kwargs: Any) -> Any:
-        pytest.fail("disabled runtime prompt context must not run composition search")
-
-    monkeypatch.setattr(
-        prompt_builder_module,
-        "feasible_composition_candidates",
-        fail_if_called,
-    )
-    monkeypatch.setattr(
-        prompt_builder_module,
-        "composition_recovery_context",
-        fail_if_called,
-    )
     builder = PromptBuilder()
     task_spec = _task_spec()
     plan_prompt = builder.build_compact_plan(task_spec, "design rules", "{}")
@@ -95,60 +80,9 @@ def test_disabled_runtime_prompt_context_omits_plan_dsl_and_recovery(
     assert tool_parameters["required"] == ["info_required"]
 
 
-def test_enabled_runtime_prompt_context_includes_plan_dsl_and_recovery(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    settings = get_settings()
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", True)
-    monkeypatch.setattr(settings, "enable_design_compact_few_shots", False)
-    constructive_result = {
-        "status": "no_candidate_found",
-        "candidates": [],
-        "diagnostics": [],
-    }
-    monkeypatch.setattr(
-        prompt_builder_module,
-        "feasible_composition_candidates",
-        lambda *_args, **_kwargs: constructive_result,
-    )
-    monkeypatch.setattr(
-        prompt_builder_module,
-        "composition_recovery_context",
-        lambda *_args, **_kwargs: {"status": "test_recovery"},
-    )
-    monkeypatch.setattr(
-        prompt_builder_module,
-        "composition_implementation_conflicts",
-        lambda *_args, **_kwargs: ["test composition conflict"],
-    )
-    builder = PromptBuilder()
-    task_spec = _task_spec()
-    plan_prompt = builder.build_compact_plan(task_spec, "design rules", "{}")
-    dsl_prompt = builder.build_design_token(
-        task_spec,
-        "design rules",
-        DESIGN_COMPACT_PROFILE_ID,
-        compact_plan=_compact_plan(),
-    )
-    user_payload = json.loads(dsl_prompt[1]["content"])
-
-    assert "# Plan 分区与合组容量合同" in plan_prompt[0]["content"]
-    assert "# 本轮执行约束" in dsl_prompt[0]["content"]
-    assert "referenceCanvasOnly" in dsl_prompt[0]["content"]
-    assert user_payload["compositionRecovery"] == {"status": "test_recovery"}
-    tool_parameters = _plan_tool_from_prompt(plan_prompt)["function"]["parameters"]
-    assert "composition" in tool_parameters["properties"]
-    assert tool_parameters["required"] == ["info_required", "composition"]
-
-
 def test_capacity_recovery_plan_prompt_replans_components_and_priorities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        get_settings(),
-        "enable_design_compact_runtime_prompt_context",
-        False,
-    )
     retry_context = CompactDslRetryContext(
         failure_category="layout_capacity",
         capacity_recovery=True,

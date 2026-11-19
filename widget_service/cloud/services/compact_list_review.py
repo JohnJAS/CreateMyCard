@@ -90,7 +90,6 @@ async def review_list_plan(
     task: dict,
     targets: tuple[str, ...],
     *,
-    require_composition: bool,
     generate: Callable[[list[dict[str, str]]], Awaitable[str]],
 ) -> CompactPlanValidationResult:
     messages = [*conversation, {"role": "user", "content": list_review_instruction(targets)}]
@@ -112,7 +111,7 @@ async def review_list_plan(
                 status="success",
                 text_artifacts={"list_review_submission": raw},
             )
-            revised = parse_compact_plan_call(raw, task, require_composition=require_composition)
+            revised = parse_compact_plan_call(raw, task)
             if not list_review_complete(original.plan, revised.plan, targets):
                 raise CompactPlanValidationError(["复核计划缺少第二成员核心字段或原有保护事实"])
         except (CompactPlanValidationError, A2UIModelGenerationError) as exc:

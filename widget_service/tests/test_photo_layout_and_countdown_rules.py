@@ -12,7 +12,6 @@ from config.config import get_settings
 from photo_samples.battery import WIDE, wide_battery_sample
 from photo_samples.common import expanded
 from services import post_layout_theme as themes
-from services import subjectless_wide_theme
 from services.post_layout_theme_registry import registered_themes
 from services.theme_content_regions import photo_layout_evidence, photo_layout_exclusion_reason
 from test_autumn_calendar_photos import COUNTDOWN_ID, photo
@@ -68,15 +67,6 @@ def test_top_bottom_and_side_slots_are_not_misclassified_as_two_big_panels():
     evidence = photo_layout_evidence(side_slots.nodes)
     assert evidence.get("sideBySidePanels") is False
     assert photo_layout_exclusion_reason(side_slots.task, evidence, side_slots.compact) is None
-
-
-def test_legacy_wide_pool_uses_the_same_global_exclusion():
-    sample = wide_battery_sample("W-split-panels")
-    evidence = photo_layout_evidence(sample.nodes)
-    gate = {"eligible": True, "businesses": ["battery"]}
-    theme = {"size": "2x4", "business": "battery"}
-    reason = subjectless_wide_theme.background_reason(theme, sample.task, evidence, gate)
-    assert reason == SPLIT_REASON
 
 
 @pytest.mark.parametrize("enabled", [False, True])

@@ -11,7 +11,6 @@ from services.compact_dsl_a2ui_converter import (
 )
 from services.compact_plan import (
     CompactPlanValidationError,
-    _secondary_body_composition_errors,
     build_compact_plan_tool,
     compact_plan_asset_ids,
     compact_plan_coverage_errors,
@@ -204,7 +203,6 @@ def freshness_plan_call(
     include_condition: bool = False,
     freshness_component: str = "EmphasisText",
     freshness_priority: str = "should",
-    composition_groups: list[dict] | None = None,
 ) -> str:
     facts = [
         {
@@ -235,36 +233,6 @@ def freshness_plan_call(
         "info_required": facts,
         "layoutHints": ["S-title-content"],
     }
-    if composition_groups is not None:
-        arguments["composition"] = {
-            "layout": "S-title-content",
-            "variant": 1,
-            "regions": [
-                {
-                    "id": "title",
-                    "path": [0],
-                    "referenceWidth": 126,
-                    "referenceHeight": 20,
-                    "gap": 0,
-                    "groups": [
-                        {
-                            "component": "SingleLineTitle",
-                            "factIndexes": [],
-                            "placements": [],
-                            "referenceHeight": 20,
-                        }
-                    ],
-                },
-                {
-                    "id": "content",
-                    "path": [1],
-                    "referenceWidth": 126,
-                    "referenceHeight": 108,
-                    "gap": 2,
-                    "groups": composition_groups,
-                },
-            ],
-        }
     return json.dumps(
         {"name": "submit_card_plan", "arguments": arguments},
         ensure_ascii=False,
@@ -331,77 +299,6 @@ def test_explicit_freshness_request_allows_rich_card() -> None:
     assert len(facts) == 3
 
 
-def test_sparse_card_composition_groups_freshness_with_core() -> None:
-    result = parse_compact_plan_call(
-        freshness_plan_call(
-            composition_groups=[
-                {
-                    "component": "EmphasisText",
-                    "factIndexes": [0, 1],
-                    "placements": ["mainText", "secondaryText"],
-                    "referenceHeight": 42,
-                }
-            ]
-        ),
-        freshness_task_spec(),
-        require_composition=True,
-    )
-
-    assert result.plan.get("composition") is not None
-
-
-def test_composition_rejects_duplicate_fact_placements() -> None:
-    with pytest.raises(
-        CompactPlanValidationError,
-        match="duplicates an info_required data fact across visible placements",
-    ):
-        parse_compact_plan_call(
-            freshness_plan_call(
-                composition_groups=[
-                    {
-                        "component": "EmphasisText",
-                        "factIndexes": [0, 0, 1],
-                        "placements": [
-                            "mainText",
-                            "secondaryText",
-                            "supportingText",
-                        ],
-                        "referenceHeight": 58,
-                    }
-                ]
-            ),
-            freshness_task_spec(),
-            require_composition=True,
-        )
-
-
-def test_sparse_card_composition_rejects_separate_freshness_group() -> None:
-    with pytest.raises(
-        CompactPlanValidationError,
-        match="must share one EmphasisText group",
-    ):
-        parse_compact_plan_call(
-            freshness_plan_call(
-                composition_groups=[
-                    {
-                        "component": "EmphasisText",
-                        "factIndexes": [0],
-                        "placements": ["mainText"],
-                        "referenceHeight": 24,
-                    },
-                    {
-                        "component": "EmphasisText",
-                        "factIndexes": [1],
-                        "placements": ["secondaryText"],
-                        "referenceHeight": 24,
-                    },
-                ]
-            ),
-            freshness_task_spec(),
-            require_composition=True,
-        )
-
-
 def test_anchor_hint_rejects_title_plus_single_body_fact() -> None:
     payload = json.loads(plan_call())
     payload["arguments"]["info_required"][0]["componentHints"] = ["SingleLineTitle"]
@@ -423,156 +320,6 @@ def test_anchor_hint_rejects_title_plus_single_body_fact() -> None:
             json.dumps(payload, ensure_ascii=False),
             task_spec(),
         )
-
-
-def plan_call_with_composition(*, content_height: int = 34) -> str:
-    payload = json.loads(plan_call())
-    for fact in payload["arguments"]["info_required"]:
-        fact["priority"] = "must"
-    payload["arguments"]["composition"] = {
-        "layout": "S-title-content-action",
-        "variant": 1,
-        "regions": [
-            {
-                "id": "title",
-                "path": [0],
-                "referenceWidth": 126,
-                "referenceHeight": 20,
-                "gap": 0,
-                "groups": [
-                    {
-                        "component": "SingleLineTitle",
-                        "factIndexes": [],
-                        "placements": [],
-                        "referenceHeight": 20,
-                    }
-                ],
-            },
-            {
-                "id": "content",
-                "path": [1, 0],
-                "referenceWidth": 126,
-                "referenceHeight": 64,
-                "gap": 0,
-                "groups": [
-                    {
-                        "component": "EventCard",
-                        "factIndexes": [0, 1],
-                        "placements": ["items[0].title", "items[0].time"],
-                        "referenceHeight": content_height,
-                    }
-                ],
-            },
-            {
-                "id": "action",
-                "path": [1, 1],
-                "referenceWidth": 126,
-                "referenceHeight": 36,
-                "gap": 0,
-                "groups": [
-                    {
-                        "component": "PillButton",
-                        "factIndexes": [2],
-                        "placements": ["onClick"],
-                        "referenceHeight": 36,
-                    }
-                ],
-            },
-        ],
-    }
-    return json.dumps(payload, ensure_ascii=False)
-
-
-def test_plan_composition_rejects_secondary_body_when_card_has_no_core() -> None:
-    payload = json.loads(plan_call_with_composition())
-    arguments = payload.get("arguments")
-    assert isinstance(arguments, dict)
-    composition = arguments.get("composition")
-    assert isinstance(composition, dict)
-    regions = composition.get("regions")
-    assert isinstance(regions, list)
-    content = regions[1]
-    assert isinstance(content, dict)
-    content["groups"] = [
-        {
-            "component": "SecondaryBody",
-            "factIndexes": [0, 1],
-            "placements": ["items[0].value", "items[1].value"],
-            "referenceHeight": 38,
-        }
-    ]
-
-    with pytest.raises(
-        CompactPlanValidationError,
-        match="SecondaryBody without a core information component",
-    ):
-        parse_compact_plan_call(
-            json.dumps(payload, ensure_ascii=False),
-            task_spec(),
-            require_composition=True,
-        )
-
-
-def test_plan_composition_accepts_secondary_body_with_core_group() -> None:
-    payload = json.loads(plan_call_with_composition())
-    arguments = payload.get("arguments")
-    assert isinstance(arguments, dict)
-    composition = arguments.get("composition")
-    assert isinstance(composition, dict)
-    regions = composition.get("regions")
-    assert isinstance(regions, list)
-    content = regions[1]
-    assert isinstance(content, dict)
-    content["gap"] = 2
-    content["groups"] = [
-        {
-            "component": "EmphasisText",
-            "factIndexes": [0],
-            "placements": ["mainText"],
-            "referenceHeight": 24,
-        },
-        {
-            "component": "SecondaryBody",
-            "factIndexes": [1],
-            "placements": ["items[0].value"],
-            "referenceHeight": 18,
-        },
-    ]
-
-    result = parse_compact_plan_call(
-        json.dumps(payload, ensure_ascii=False),
-        task_spec(),
-        require_composition=True,
-    )
-
-    normalized_composition = result.plan.get("composition")
-    assert isinstance(normalized_composition, dict)
-    normalized_regions = normalized_composition.get("regions")
-    assert isinstance(normalized_regions, list)
-    normalized_content = normalized_regions[1]
-    assert isinstance(normalized_content, dict)
-    groups = normalized_content.get("groups")
-    assert isinstance(groups, list)
-    secondary = groups[1]
-    assert isinstance(secondary, dict)
-    assert secondary.get("component") == "SecondaryBody"
-
-
-def test_plan_composition_accepts_secondary_body_with_core_in_other_region() -> None:
-    composition = {
-        "regions": [
-            {
-                "id": "primary",
-                "groups": [{"component": "EmphasisText"}],
-            },
-            {
-                "id": "support",
-                "groups": [{"component": "SecondaryBody"}],
-            },
-        ]
-    }
-
-    assert _secondary_body_composition_errors(composition) == []
 
 
 def asset_task_spec() -> dict:
@@ -771,7 +518,6 @@ def test_dual_action_plan_tool_only_offers_the_unique_layout() -> None:
     ]
     tool = build_compact_plan_tool(
         spec,
-        include_composition=True,
         layout_scope="S-content-dual-action",
     )
     properties = tool["function"]["parameters"]["properties"]
@@ -779,9 +525,6 @@ def test_dual_action_plan_tool_only_offers_the_unique_layout() -> None:
 
     assert layout_hints["items"]["enum"] == ["S-content-dual-action"]
     assert layout_hints["maxItems"] == 1
-    assert properties["composition"]["properties"]["layout"]["enum"] == [
-        "S-content-dual-action"
-    ]
     title_assignment = properties["assetAssignments"]["properties"]["title"]
     assert title_assignment["properties"]["assetId"] == {
         "type": "null",
@@ -1057,67 +800,24 @@ def test_plan_parser_accepts_pill_button_when_action_icon_is_unassigned() -> Non
     assert result.plan["assetAssignments"]["actions"][0]["assetId"] is None
 
 
-def test_plan_tool_requires_composition_only_with_runtime_context() -> None:
-    tool = build_compact_plan_tool(task_spec(), include_composition=True)
-    parameters = tool["function"]["parameters"]
-
-    assert "composition" in parameters["properties"]
-    assert parameters["required"] == ["info_required", "composition"]
-    groups = parameters["properties"]["composition"]["properties"]["regions"]
-    component_enum = groups["items"]["properties"]["groups"]["items"]
-    component_enum = component_enum["properties"]["component"]["enum"]
-    assert "CardButton" in component_enum
-
-
 def test_two_by_four_plan_tool_offers_card_button_without_asset_candidates() -> None:
     spec = task_spec()
     spec["size"] = "2x4"
 
-    tool = build_compact_plan_tool(spec, include_composition=True)
+    tool = build_compact_plan_tool(spec)
     parameters = tool["function"]["parameters"]
     fact_properties = parameters["properties"]["info_required"]["items"]["properties"]
     assert "CardButton" in fact_properties["componentHints"]["items"]["enum"]
-    groups = parameters["properties"]["composition"]["properties"]["regions"]
-    component_enum = groups["items"]["properties"]["groups"]["items"]
-    assert "CardButton" in component_enum["properties"]["component"]["enum"]
     assert "assetAssignments" not in parameters["properties"]
 
 
-def test_plan_parser_rejects_composition_when_runtime_context_is_disabled() -> None:
+def test_plan_parser_rejects_retired_capacity_plan() -> None:
+    payload = json.loads(plan_call())
+    arguments = payload.get("arguments")
+    assert isinstance(arguments, dict)
+    arguments["composition"] = {"layout": "S-title-content-action"}
     with pytest.raises(CompactPlanValidationError, match="Unsupported Plan arguments"):
-        parse_compact_plan_call(plan_call_with_composition(), task_spec())
-
-
-def test_plan_parser_requires_valid_composition_when_runtime_context_is_enabled() -> None:
-    result = parse_compact_plan_call(
-        plan_call_with_composition(),
-        task_spec(),
-        require_composition=True,
-    )
-
-    assert result.plan["composition"]["layout"] == "S-title-content-action"
-    assert all(
-        region["remainingHeight"] >= 0
-        for region in result.plan["composition"]["regions"]
-    )
-
-
-def test_plan_parser_rejects_negative_remaining_height_in_runtime_mode() -> None:
-    with pytest.raises(CompactPlanValidationError, match="negative remainingHeight"):
-        parse_compact_plan_call(
-            plan_call_with_composition(content_height=100),
-            task_spec(),
-            require_composition=True,
-        )
-
-
-def test_plan_parser_requires_composition_in_runtime_mode() -> None:
-    with pytest.raises(CompactPlanValidationError, match="composition is required"):
-        parse_compact_plan_call(
-            plan_call(),
-            task_spec(),
-            require_composition=True,
-        )
+        parse_compact_plan_call(json.dumps(payload), task_spec())
 
 
 @pytest.mark.parametrize(
@@ -1893,48 +1593,6 @@ def test_duplicate_plan_data_remains_blocking_when_missing_data_is_warning() -> 
     assert result.warnings == ()
 
 
-def test_anchor_composition_cannot_be_replaced_by_text_action_layout() -> None:
-    spec = task_spec()
-    plan = {
-        "info_required": [
-            {
-                "requirement": "会议标题",
-                "dataId": "/data/calendar/events/0/title",
-                "componentHints": ["SecondaryBody"],
-            },
-            {
-                "requirement": "打开日历",
-                "actionId": "event.open.calendar",
-                "componentHints": ["CircleButton", "PillButton"],
-            },
-        ],
-        "layoutHints": ["S-title-anchor", "S-title-content-action"],
-        "composition": {
-            "layout": "S-title-anchor",
-            "variant": 1,
-            "regions": [],
-        },
-    }
-    source = "\n".join(
-        [
-            '["root","Column",{},["title","content","action"]]',
-            '["title","SingleLineTitle",{"title":"会议"}]',
-            '["content","SecondaryBody",{"role":"body","items":'
-            '[{"value":{"path":"/data/calendar/events/0/title"}}]}]',
-            '["action","PillButton",{"label":"打开日历","onClick":'
-            '[{"call":"clickToDeeplink","args":{"uri":"hww://calendar"}}]}]',
-        ]
-    )
-
-    errors = compact_plan_coverage_errors(source, plan, spec)
-
-    assert errors == (
-        "Accepted Compact Plan selected S-title-anchor as its executable composition; "
-        "keep the CircleButton anchor layout instead of replacing it with a text-action "
-        "layout that compresses the required content.",
-    )
-
-
 def test_single_focus_data_display_route_cannot_be_downgraded_during_repair() -> None:
     spec = task_spec()
     schema = spec.get("dataModelSchema")
@@ -2473,10 +2131,7 @@ def test_drop_only_allows_explicit_omissions_and_keeps_action_checks(
             directive = tracker.next_directive(original, errors, compact_plan=plan, task_spec=spec)
         assert directive.repair_strategy == "drop_optional_component"
         assert tracker.allowed_omitted_fact_indexes == (1,)
-    allowed = tracker.validation_omitted_fact_indexes(
-        plan,
-        validate_drop_plan_facts=False,
-    )
+    allowed = tracker.allowed_omitted_fact_indexes
     source_rows[2] = ["main", "EmphasisText", {"mainText": "日程概览"}]
     source_rows[5] = ["guide", "EmphasisText", {"mainText": "日程信息"}]
     source_rows[3][3] = ["title", "guide", "action"]

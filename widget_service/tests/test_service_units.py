@@ -522,16 +522,6 @@ def test_validation_failure_retry_is_enabled_by_default(monkeypatch):
     assert settings.enable_validation_failure_retry is True
 
 
-def test_drop_plan_fact_validation_is_disabled_by_default_and_can_be_enabled(monkeypatch):
-    variable = "WIDGET_SERVICE_ENABLE_DROP_PLAN_FACT_VALIDATION"
-    monkeypatch.delenv(variable, raising=False)
-    assert Settings(_env_file=None).enable_drop_plan_fact_validation is False
-    monkeypatch.setenv(variable, "true")
-    assert Settings(_env_file=None).enable_drop_plan_fact_validation is True
-    monkeypatch.setenv(variable, "false")
-    assert Settings(_env_file=None).enable_drop_plan_fact_validation is False
-
-
 def test_model_failure_retry_is_enabled_by_default_and_can_be_disabled(monkeypatch):
     monkeypatch.delenv("WIDGET_SERVICE_ENABLE_MODEL_FAILURE_RETRY", raising=False)
 
@@ -555,17 +545,6 @@ def test_design_compact_few_shots_are_enabled_by_default_and_can_be_disabled(
 
     monkeypatch.setenv(variable, "false")
     assert Settings(_env_file=None).enable_design_compact_few_shots is False
-
-
-def test_design_compact_runtime_prompt_context_is_disabled_by_default_and_can_be_enabled(
-    monkeypatch,
-):
-    variable = "WIDGET_SERVICE_ENABLE_DESIGN_COMPACT_RUNTIME_PROMPT_CONTEXT"
-    monkeypatch.delenv(variable, raising=False)
-    assert Settings(_env_file=None).enable_design_compact_runtime_prompt_context is False
-
-    monkeypatch.setenv(variable, "true")
-    assert Settings(_env_file=None).enable_design_compact_runtime_prompt_context is True
 
 
 def test_compact_dsl_argument_repair_defaults_to_one_reminder(monkeypatch):

@@ -48,7 +48,6 @@ def isolated_models(monkeypatch, isolated_theme_stage):
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
     monkeypatch.setattr(settings, "enable_validation_failure_retry", False)
     monkeypatch.setattr(settings, "enable_model_failure_retry", False)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
 
 
 def _plan(text="带证件", source=None):

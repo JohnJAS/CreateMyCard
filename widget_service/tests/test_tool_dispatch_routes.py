@@ -677,7 +677,6 @@ def test_compact_valid_request_breaks_stringified_argument_streak(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(WidgetGenerationService, "_enable_card_template", lambda _self: False)
     monkeypatch.setattr(
         settings,

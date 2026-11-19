@@ -11,7 +11,6 @@ import pytest
 from config.config import get_settings
 from services import post_layout_theme as themes
 from services import post_layout_theme_registry as registry
-from services import square_photo_expansion as expansion
 from services import theme_photo_eligibility, theme_texture_eligibility
 from services.compact_high_level_components import (
     CompactDslConversionError,
@@ -201,49 +200,3 @@ def test_subject_overlap_preserves_touching_edges(rect, overlaps):
     evidence = {"complete": True, "occupied": [{"id": "title", "rect": rect}]}
     reason = themes._photo_geometry_reason(photo, evidence)
     assert reason == ("主体区域与内容 title 冲突" if overlaps else None)
-
-
-@pytest.fixture
-def expansion_theme(monkeypatch):
-    monkeypatch.setattr(expansion, "expansion_gate", lambda task: {
-        "eligible": True, "business": "countdown",
-    })
-    return {"business": "countdown", "sourceSize": "2x2", "size": "2x4",
-            "composition": "square-left", "objectFit": "fill",
-            "frame": {"slotWidth": 1, "slotHeight": 1, "imageWidth": 1,
-                      "imageHeight": 1, "align": "topStart"},
-            "subjectBounds": [.5, 0, .5, 1]}
-
-
-@pytest.mark.parametrize("bounds,accepted", [
-    (None, False),
-    ([], False),
-    ([.5, 0, .5], False),
-    ([.5, 0, 0, 1], False),
-    ([.5, 0, float("inf"), 1], False),
-    ([.5, 0, .5, 1], True),
-    ([.6, .1, .3, .8], True),
-    ([.499, 0, .5, 1], False),
-    ([.5, -.001, .5, 1], False),
-    ([.5, 0, .501, 1], False),
-    ([.5, 0, .5, 1.001], False),
-])
-def test_expansion_subject_stays_in_right_half(expansion_theme, bounds, accepted):
-    expansion_theme["subjectBounds"] = bounds
-    evidence = {"complete": True, "occupied": [{"id": "title", "rect": [0, 0, 1, 1]}]}
-    reason = expansion._expansion_geometry_reason(expansion_theme, evidence)
-    assert reason == (None if accepted else "图片主体侵入左侧内容半区")
-
-
-@pytest.mark.parametrize("rect,accepted", [
-    ([0, 0, 1, 1], True),
-    ([.1, .1, .8, .8], True),
-    ([-.001, 0, 1, 1], False),
-    ([0, -.001, 1, 1], False),
-    ([0, 0, 1.001, 1], False),
-    ([0, 0, 1, 1.001], False),
-])
-def test_expansion_content_stays_in_original_square(expansion_theme, rect, accepted):
-    evidence = {"complete": True, "occupied": [{"id": "title", "rect": rect}]}
-    reason = expansion._expansion_geometry_reason(expansion_theme, evidence)
-    assert reason == (None if accepted else "原内容及动态预留超出2x2安全范围")

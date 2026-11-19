@@ -19,7 +19,6 @@ from services.card_validation import ValidationOptions, validate_card
 from services.card_validation.context import ValidationContext
 from services.card_validation.edit_validation import artifact as edit_validation_module
 from services.compact_dsl_interface_retry import run_compact_dsl_with_retry
-from services.single_step_edit import source_digest
 from services.source_artifact_repository import SourceArtifactLoadResult, SourceArtifactRepository
 from services.widget_edit_contract import (
     EditIntent,
@@ -27,6 +26,7 @@ from services.widget_edit_contract import (
     dump_rows,
     validate_intent,
 )
+from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 
 
@@ -539,6 +539,21 @@ async def test_edit_master_switch_and_invalid_source_never_create(edit_run, monk
     response = await WidgetGenerationService().generate_widget_card_compact_dsl(_request())
     assert response.errorCode == ErrorCode.WIDGET_EDIT_DISABLED.value
     assert not edit_run.calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entry", [
+    "generate_widget_card_compact_dsl", "generate_widget_card_a2ui_form",
+    "generate_widget_card_terse_dsl_nested2",
+])
+async def test_disabled_semantic_edit_never_uses_retired_route(edit_run, monkeypatch, entry):
+    monkeypatch.setattr(get_settings(), "enable_semantic_widget_edit", False)
+    response = await getattr(WidgetGenerationService(), entry)(_request())
+    assert response.status == GenerationStatus.UNSUPPORTED
+    assert response.errorCode == ErrorCode.WIDGET_EDIT_DISABLED.value
+    assert not response.artifactUrl
+    assert not edit_run.calls
+    assert not edit_run.saved
 
 
 def test_first_generation_response_keeps_original_serialization():

@@ -82,8 +82,6 @@ async def test_service_passes_warning_evidence_to_interface_retry_context(
     for name, value in {
         "enable_a2ui_model_mock": False, "enable_artifact_validation": False,
         "enable_validation_failure_retry": True, "validation_failure_max_repair_attempts": 1,
-        "enable_design_compact_runtime_prompt_context": False,
-        "enable_drop_plan_fact_validation": False, "enable_single_step_generation_fallback": False,
         "enable_ids_mock": True,
     }.items():
         monkeypatch.setattr(settings, name, value)
@@ -178,8 +176,6 @@ async def test_static_service_recovery_preserves_unapproved_missing_must(monkeyp
     for name, value in {
         "enable_a2ui_model_mock": False, "enable_artifact_validation": False,
         "enable_validation_failure_retry": True, "validation_failure_max_repair_attempts": 2,
-        "enable_design_compact_runtime_prompt_context": False,
-        "enable_drop_plan_fact_validation": True, "enable_single_step_generation_fallback": False,
         "enable_static_content_generation_policy": True, "enable_ids_mock": True,
     }.items():
         monkeypatch.setattr(settings, name, value)

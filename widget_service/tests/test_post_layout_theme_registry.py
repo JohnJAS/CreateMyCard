@@ -29,7 +29,6 @@ RETIRED_BALL_COLORS = {
 def runtime(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_photo_background_theme", False)
-    monkeypatch.setattr(settings, "enable_subjectless_wide_theme", False)
     original_get = settings.CONFIG.get
 
     def configured(key, default=None):
@@ -128,7 +127,6 @@ def test_all_themes_are_self_contained_and_only_current_photos_remain():
     (("selection", "fusionRouting", 0, "themeId"), "missing-theme"),
     (("selection", "fusionRouting", 0, "queryAll"), ["[invalid"]),
     (("themes", 0, "enabled"), False),
-    (("themes", 13, "sourceSize"), []),
     (("matching",), None),
 ])
 def test_invalid_registry_fails_at_load(path, value):
@@ -219,7 +217,7 @@ def test_final_theme_expansion_does_not_read_legacy_color_sources(monkeypatch):
                         forbidden_palette_read)
     monkeypatch.setattr(fusion_ball_expander, "_DESIGN_TOKEN_FIXED_PALETTES", {})
     for theme in registry.registered_themes():
-        size = theme.get("sourceSize") or theme.get("sizes", [])[0]
+        size = theme.get("sizes", [])[0]
         task = {"size": size, "appVersion": "99.0.0"}
         source = BASELINE.get("sources", {}).get(size)
         assert source

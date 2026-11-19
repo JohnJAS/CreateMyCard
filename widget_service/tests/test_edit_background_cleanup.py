@@ -7,8 +7,8 @@ import pytest
 
 from core.errors import GenerationStatus
 from services.card_validation.edit_validation.artifact import validate_edit_artifact
-from services.single_step_edit import source_digest
 from services.widget_edit_contract import apply_edit_output, dump_rows
+from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 from test_semantic_widget_edit import _intent, _nodes, _request, _rows
 from test_semantic_widget_edit import edit_run as edit_run

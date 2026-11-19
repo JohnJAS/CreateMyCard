@@ -127,15 +127,15 @@ async def test_recursive_branch_keeps_parent_and_accumulated_attempts(tmp_path):
     async def generate(*, policy):
         trace_phase("dsl")
         trace_increment_attempt("modelPhysicalAttempts")
-        if not policy.single_step:
+        if policy.depth == 0:
             await generate(policy=SimpleNamespace(
-                single_step=True, source_format="single-step-edit-patch",
+                depth=1,
             ))
         return SimpleNamespace(status="success")
 
     recorder, token = _start(tmp_path)
     try:
-        await generate(policy=SimpleNamespace(single_step=False))
+        await generate(policy=SimpleNamespace(depth=0))
     finally:
         view = _finish(recorder, token, tmp_path, "success")
     nodes = view.get("nodes")
@@ -147,7 +147,7 @@ async def test_recursive_branch_keeps_parent_and_accumulated_attempts(tmp_path):
         attributes = node.get("attributes")
         assert isinstance(attributes, dict)
         branch_names.add(attributes.get("generationBranch"))
-    assert branch_names == {"fusion", "single_step_edit"}
+    assert branch_names == {"fusion"}
     summary = view.get("summary")
     assert isinstance(summary, dict)
     assert summary.get("attemptCounts", {}).get("modelPhysicalAttempts") == 2
@@ -189,9 +189,9 @@ def test_new_configuration_inherits_and_allows_task_overrides(tmp_path):
     debug_path.write_text("widget_backend: {}", encoding="utf-8")
     config = read_configuration(root, debug_path=debug_path)
     assert set(GENERATION_OPTIONS) <= set(config.exposed)
-    updates = validate_changes(config, {"enable_single_step_widget_edit": True}, exposed=True)
+    updates = validate_changes(config, {"enable_photo_background_theme": True}, exposed=True)
     config.values.update(updates)
-    assert runtime_values(config).get("enable_single_step_widget_edit") is True
+    assert runtime_values(config).get("enable_photo_background_theme") is True
 
 
 @pytest.mark.asyncio
@@ -236,25 +236,25 @@ def test_new_configuration_save_preserves_explicit_default_group(tmp_path):
     config_dir = root / "cloud/config"
     config_dir.mkdir(parents=True)
     (config_dir / "config.py").write_text(
-        "class Settings:\n    enable_single_step_widget_edit: bool = True\n", encoding="utf-8",
+        "class Settings:\n    enable_photo_background_theme: bool = True\n", encoding="utf-8",
     )
     (config_dir / "default_config.yaml").write_text(
-        "enable_single_step_widget_edit: true\n", encoding="utf-8",
+        "enable_photo_background_theme: true\n", encoding="utf-8",
     )
     debug_path = tmp_path / "debug_tools/debug_tool.yaml"
     debug_path.parent.mkdir()
     debug_path.write_text(
-        "widget_backend:\n  defaults:\n    enable_single_step_widget_edit: false\n",
+        "widget_backend:\n  defaults:\n    enable_photo_background_theme: false\n",
         encoding="utf-8",
     )
     config = read_configuration(root)
-    assert config.values.get("enable_single_step_widget_edit") is False
-    assert "enable_single_step_widget_edit" not in config.exposed
-    updated = save_configuration(root, {"enable_single_step_widget_edit": True}, config.version)
-    assert updated.get("values", {}).get("enable_single_step_widget_edit") is True
+    assert config.values.get("enable_photo_background_theme") is False
+    assert "enable_photo_background_theme" not in config.exposed
+    updated = save_configuration(root, {"enable_photo_background_theme": True}, config.version)
+    assert updated.get("values", {}).get("enable_photo_background_theme") is True
     document = yaml.safe_load(debug_path.read_text(encoding="utf-8"))
     assert document.get("widget_backend", {}).get("defaults", {}).get(
-        "enable_single_step_widget_edit"
+        "enable_photo_background_theme"
     ) is True
 
 

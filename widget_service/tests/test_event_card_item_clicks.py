@@ -225,7 +225,7 @@ def test_stale_dual_action_hint_does_not_count_item_clicks_as_buttons(
             "componentHints": ["PillButton"],
         })
     plan["layoutHints"] = ["S-content-dual-action"]
-    context = compact_plan_context(plan, implementation_conflicts=[])
+    context = compact_plan_context(plan)
     assert "成为固定布局" not in context
     assert "actions-only 变体" not in context
 

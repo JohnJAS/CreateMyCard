@@ -6,8 +6,8 @@ import pytest
 
 from core.errors import GenerationStatus
 from custom.a2ui_model_client import A2UIModelClient, A2UIModelGenerationError
-from services.single_step_edit import source_digest
 from services.widget_edit_contract import apply_edit_output
+from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 from test_semantic_widget_edit import _intent, _nodes, _patch, _request, _rows
 from test_semantic_widget_edit import edit_run as edit_run

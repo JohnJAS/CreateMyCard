@@ -8,9 +8,7 @@ from config.config import get_settings
 from services import post_layout_theme as themes
 from services import post_layout_theme_registry as registry
 from services.card_validator import validate_card
-from services.square_photo_expansion import expand_square
 from services.theme_style_roles import role
-from theme_photo_samples import expansion_photo
 
 
 def photo_theme(size):
@@ -164,17 +162,6 @@ def test_photo_with_fallback_passes_protocol_validation(monkeypatch, rgb, size):
     card = {"title": "图片兜底", "description": "背景加载测试", "suggestSize": size}
     report = validate_card(result, card, allowed_asset_sources={theme.get("src")})
     assert not report.errors, report.errors
-
-
-def test_expansion_keeps_background_and_correct_foreground_reference(monkeypatch):
-    monkeypatch.setattr(themes, "fusion_ball_enabled", lambda version: True)
-    theme = expansion_photo()
-    result = expand_square(source(), theme, {"size": "2x2"})
-    half = node_by_id(result, themes.PREFIX + "contentHalf")
-    assert half.get("children") == [themes.FUSION_FOREGROUND_ID]
-    assert node_by_id(result, "root").get("styles", {}).get("backgroundColor") == "#FF1F1F99"
-    assert node_by_id(result, "fusionBallBackground")
-    assert themes.foreground_signature(result) == themes.foreground_signature(source())
 
 
 def test_explicit_background_bypasses_photo_and_its_fallback(monkeypatch):

@@ -26,11 +26,6 @@ from services.compact_component_semantics import (
     MODEL_COMPONENT_TYPES_BY_SIZE,
     SHARED_FACT_COMPONENTS,
 )
-from services.compact_composition_context import (
-    composition_group_minimum_height,
-    composition_implementation_conflicts,
-    composition_region_capacity,
-)
 from services.compact_composition_planner import compound_duration_bindings
 from services.compact_dsl_a2ui_converter import (
     MODEL_COMPACT_INPUT_COMPONENT_TYPES,
@@ -40,7 +35,6 @@ from services.compact_dsl_a2ui_converter import (
 from services.compact_layout_runtime import (
     CompactLayoutRuntimeError,
     layout_ids_for_size,
-    load_layout_contract,
     match_compact_layout,
 )
 from services.compact_plan_output import (
@@ -231,7 +225,6 @@ class CompactOptionalDropCandidate:
 def build_compact_plan_tool(
     task_spec: dict[str, Any],
     *,
-    include_composition: bool = False,
     layout_scope: str | None = None,
     allowed_fact_targets: tuple[tuple[str, str], ...] | None = None,
     static_recovery_facts: tuple[CompactDslRecoveryFact, ...] = (),
@@ -395,7 +388,7 @@ def build_compact_plan_tool(
             "若提交两个不同的独立动作，按真实正文槽位组合信息；事实条数不等于显示行数，"
             "允许同对象字段合法合组，保留两个动作，实际容量仍须通过既有校验与修复。"
         )
-    if size == "2x2" and not include_composition:
+    if size == "2x2":
         description += (
             "单业务唯一天气城市详情或单条日程详情，未明确要求按钮时，由服务端判断整卡点击。"
             "仍提交该 actionId 且为 must，保留完整参数；不自行提交 wholeCardActionId。"
@@ -478,13 +471,6 @@ def build_compact_plan_tool(
             description += "存在素材候选时，优先分配给两个按钮；剩余素材不分配给标题。"
         else:
             description += "存在素材候选时，同时提交按钮优先、标题随后且不复用的素材分配。"
-    if include_composition:
-        plan_properties["composition"] = _composition_tool_schema(
-            size,
-            layout_scope=layout_scope,
-        )
-        required.append("composition")
-        description += "同时提交可完整承载这些事实的分区、组件合组和容量计划。"
     tool = {
         "type": "function",
         "function": {
@@ -1369,471 +1355,27 @@ def _normalize_static_plan(
     )
 
 
-def _composition_tool_schema(
-    size: Any,
-    *,
-    layout_scope: str | None = None,
-) -> dict[str, Any]:
-    """实例级实现计划；事实仍由 info_required 独立确定。"""
-    integer = {"type": "integer", "minimum": 0, "maximum": 23}
-    extent = {"type": "number", "minimum": 0}
-    group = {
-        "type": "object",
-        "properties": {
-            "component": {
-                "type": "string",
-                "enum": list(_component_hints(size)),
-            },
-            "factIndexes": {
-                "type": "array",
-                "items": integer,
-                "minItems": 0,
-                "maxItems": 24,
-                "description": ("只有装饰 SingleLineTitle 可以为空；同事实多属性重复索引。"),
-            },
-            "placements": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 0,
-                "maxItems": 24,
-                "description": "逐条对应 factIndexes 的可见 Prop，如 items[0].value。",
-            },
-            "referenceHeight": {**extent, "description": "完整组件按实际条数/行数合计占高。"},
-            "variant": {"type": "string"},
-            "density": {"type": "string", "enum": ["compact"]},
-            "columns": {"type": "integer", "enum": [1, 2]},
-            "lines": {
-                "type": "array",
-                "items": {"type": "integer", "enum": [1, 2]},
-                "description": "依每个实际文本 item 顺序记录行数，不一律设两行。",
-            },
-            "labelLines": {"type": "integer", "enum": [1, 2]},
-        },
-        "required": ["component", "factIndexes", "placements", "referenceHeight"],
-        "additionalProperties": False,
-    }
-    region = {
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "minLength": 1},
-            "path": {
-                "type": "array",
-                "items": integer,
-                "description": "选定布局内从 root 开始的子序号；全卡为[]。",
-            },
-            "referenceWidth": {**extent, "description": "已扣此区域内边距的可用宽度。"},
-            "referenceHeight": {**extent, "description": "已扣此区域内边距的可用高度。"},
-            "gap": {**extent, "description": "合同允许的组间距，不改组件内部间距。"},
-            "groups": {"type": "array", "items": group, "minItems": 1, "maxItems": 24},
-        },
-        "required": ["id", "path", "referenceWidth", "referenceHeight", "gap", "groups"],
-        "additionalProperties": False,
-    }
-    composition_layouts = list(_layout_hints(size))
-    if size == "2x2" and layout_scope == "S-content-dual-action":
-        composition_layouts = ["S-content-dual-action"]
-    return {
-        "type": "object",
-        "properties": {
-            "layout": {"type": "string", "enum": composition_layouts},
-            "variant": {"type": "integer", "minimum": 1},
-            "regions": {"type": "array", "items": region, "minItems": 1, "maxItems": 8},
-        },
-        "required": ["layout", "variant", "regions"],
-        "additionalProperties": False,
-        "description": (
-            "实例级分区合组计划：覆盖全部必要事实与动作，核算横向文字与纵向占高，"
-            "参考尺寸来自当前合同，不写成固定输出宽高；不能缩字或删信息。"
-        ),
-    }
-
-
-def _finite_extent(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and value >= 0
-    )
-
-
-def _normalize_composition(
-    value: Any,
-    raw_facts: Any,
-    facts: list[dict[str, Any]],
-    size: Any,
-) -> tuple[dict[str, Any] | None, list[str]]:
-    """标准化实现方案；调用方根据运行模式决定是否阻断。"""
-    if value is None:
-        return None, []
-    warning = "composition ignored: regroup all facts with valid layout, placements and budgets."
-    schema = _composition_tool_schema(size)
-    if not isinstance(value, dict) or set(value) != {"layout", "variant", "regions"}:
-        return None, [warning]
-    variant = value.get("variant")
-    valid_variant = isinstance(variant, int) and not isinstance(variant, bool) and variant > 0
-    layout_id = value.get("layout")
-    if layout_id not in _layout_hints(size) or not valid_variant:
-        return None, [warning]
-    layout = load_layout_contract().get("layouts", {}).get(layout_id, {})
-    patterns = layout.get("patterns", [])
-    if variant > len(patterns):
-        return None, [warning]
-    is_countdown = layout_id == "W-countdown-center"
-    if is_countdown:
-        action_count = sum(1 for fact in facts if "actionId" in fact)
-    else:
-        action_count = sum(1 for fact in facts if _requires_action_button(fact))
-    action_range = layout.get("actionCount", {})
-    if not action_range.get("min", 0) <= action_count <= action_range.get("max", action_count):
-        return None, [
-            "composition layout cannot carry all required actions; "
-            "choose a compatible layout without removing any action."
-        ]
-    regions = value.get("regions")
-    if not isinstance(regions, list) or not 1 <= len(regions) <= 8:
-        return None, [warning]
-    identities: list[tuple[str, str]] = []
-    for fact in facts:
-        for key in _TARGET_KEYS:
-            if key in fact:
-                identities.append((key, fact.get(key)))
-                break
-    index_map: dict[int, int] = {}
-    for index, fact in enumerate(raw_facts):
-        for key in _TARGET_KEYS:
-            target = fact.get(key)
-            if isinstance(target, str) and (key, target.strip()) in identities:
-                index_map[index] = identities.index((key, target.strip()))
-    region_schema = schema.get("properties", {}).get("regions", {}).get("items", {})
-    group_schema = region_schema.get("properties", {}).get("groups", {}).get("items", {})
-    covered: set[int] = set()
-    normalized: list[dict[str, Any]] = []
-    notes: list[str] = []
-    countdown_slots: dict[tuple[int, ...], list[str]] = {}
-    if is_countdown:
-        pattern = patterns[variant - 1]
-        for rule in pattern.get("rules", []):
-            path = tuple(rule.get("path", []))
-            if path:
-                countdown_slots[path] = rule.get("types", [])
-        if len(regions) != len(countdown_slots):
-            return None, [warning]
-    for region in regions:
-        if not _composition_region_shape(region, region_schema):
-            return None, [warning]
-        if size == "2x2":
-            region, slot_note = _small_content_region(region, layout, variant)
-            if slot_note is not None:
-                notes.append(slot_note)
-        capacity = composition_region_capacity(
-            size,
-            value.get("layout"),
-            variant,
-            region.get("path"),
-        )
-        region = dict(region)
-        if capacity is not None:
-            region.update(
-                referenceWidth=capacity.get("width"), referenceHeight=capacity.get("height")
-            )
-            if capacity.get("fixedGap") is not None:
-                region["gap"] = capacity.get("fixedGap")
-            region["capacitySource"] = "layout_contract"
-        else:
-            region["capacitySource"] = "model_estimate"
-            notes.append(
-                f"region {region.get('id')} capacity must be checked against "
-                "the complete layout contract before generating."
-            )
-        groups: list[dict[str, Any]] = []
-        for group in region.get("groups"):
-            normalized_group = _composition_group(
-                group,
-                group_schema,
-                index_map,
-                facts,
-                size,
-            )
-            if normalized_group is None:
-                return None, [warning]
-            group_indexes = normalized_group.get("factIndexes")
-            if not isinstance(group_indexes, list):
-                return None, [warning]
-            duplicate_data_indexes: set[int] = set()
-            indexes_in_group: set[int] = set()
-            for fact_index in group_indexes:
-                is_duplicate = fact_index in indexes_in_group or fact_index in covered
-                indexes_in_group.add(fact_index)
-                if not is_duplicate or not 0 <= fact_index < len(facts):
-                    continue
-                if isinstance(facts[fact_index].get("dataId"), str):
-                    duplicate_data_indexes.add(fact_index)
-            if duplicate_data_indexes:
-                return None, [
-                    "composition duplicates an info_required data fact across visible "
-                    "placements; assign every dataId to exactly one visible placement."
-                ]
-            covered.update(group_indexes)
-            notes.extend(normalized_group.get("placementNotes", []))
-            groups.append(normalized_group)
-        if is_countdown:
-            slot_types = countdown_slots.pop(tuple(region.get("path", [])), [])
-            if capacity is None or len(groups) != 1:
-                return None, [warning]
-            group = groups[0]
-            if group.get("component") not in slot_types or len(group.get("factIndexes", [])) != 1:
-                return None, [warning]
-            group["referenceHeight"] = capacity.get("height")
-        height = sum(group.get("referenceHeight") for group in groups)
-        height += region.get("gap") * (len(groups) - 1)
-        remaining = region.get("referenceHeight") - height
-        height_tolerance = 2.0 if size == "2x2" else 0.0
-        if remaining < -height_tolerance:
-            notes.append(
-                f"region {region.get('id')} overflows by {-remaining:g}vp; "
-                "replace this complete grouping, do not shrink or omit facts."
-            )
-        normalized.append(
-            {**region, "groups": groups, "requiredHeight": height, "remainingHeight": remaining}
-        )
-    if covered != set(range(len(facts))):
-        return None, [
-            "composition incomplete: retain every info_required fact and action; "
-            "rebuild complete region assignments before generating."
-        ]
-    return {"layout": value.get("layout"), "variant": variant, "regions": normalized}, notes
-
-
 def _anchor_plan_errors(
     facts: list[dict[str, Any]],
     layout_hints: list[str],
-    composition: dict[str, Any] | None,
 ) -> list[str]:
     """阻止没有独立左下支撑事实的 Anchor 进入生成阶段。"""
-    composition_is_anchor = (
-        isinstance(composition, dict) and composition.get("layout") == "S-title-anchor"
-    )
-    if not composition_is_anchor and "S-title-anchor" not in layout_hints:
+    if "S-title-anchor" not in layout_hints:
         return []
-    if not composition_is_anchor:
-        body_facts: list[dict[str, Any]] = []
-        for fact in facts:
-            if "actionId" in fact:
-                continue
-            if fact.get("componentHints") == ["SingleLineTitle"]:
-                continue
-            body_facts.append(fact)
-        if len(body_facts) >= 2:
-            return []
-        return [
-            "S-title-anchor requires one primary body fact and at least one independent "
-            "support fact; title-only context and actions do not count. Remove the Anchor "
-            "hint and choose a text-action layout when support is empty."
-        ]
-
-    support_indexes: set[int] = set()
-    other_visible_indexes: set[int] = set()
-    for region in composition.get("regions", []):
-        path = tuple(region.get("path", []))
-        indexes: set[int] = set()
-        for group in region.get("groups", []):
-            for index in group.get("factIndexes", []):
-                if not isinstance(index, int) or not 0 <= index < len(facts):
-                    continue
-                if "actionId" not in facts[index]:
-                    indexes.add(index)
-        if path[:3] == (1, 1, 0):
-            support_indexes.update(indexes)
-        elif path[:1] == (0,) or path[:2] == (1, 0):
-            other_visible_indexes.update(indexes)
-    independent_support = support_indexes - other_visible_indexes
-    if independent_support:
+    body_facts: list[dict[str, Any]] = []
+    for fact in facts:
+        if "actionId" in fact:
+            continue
+        if fact.get("componentHints") == ["SingleLineTitle"]:
+            continue
+        body_facts.append(fact)
+    if len(body_facts) >= 2:
         return []
     return [
-        "S-title-anchor composition must assign at least one independent non-action fact "
-        "to support path [1, 1, 0]; a title fact, duplicated primary fact, empty group or "
-        "invented label cannot fill the left support region. Choose a text-action layout."
+        "S-title-anchor requires one primary body fact and at least one independent "
+        "support fact; title-only context and actions do not count. Remove the Anchor "
+        "hint and choose a text-action layout when support is empty."
     ]
-
-
-def _secondary_body_composition_errors(
-    composition: dict[str, Any] | None,
-) -> list[str]:
-    """Require planned SecondaryBody groups to have a core group in the card."""
-    if not isinstance(composition, dict):
-        return []
-    components: set[str] = set()
-    for region in composition.get("regions", []):
-        if not isinstance(region, dict):
-            continue
-        groups = region.get("groups", [])
-        if not isinstance(groups, list):
-            continue
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            component = group.get("component")
-            if isinstance(component, str):
-                components.add(component)
-    if "SecondaryBody" not in components:
-        return []
-    if components & CORE_INFORMATION_COMPONENT_TYPES:
-        return []
-    return [
-        "composition uses SecondaryBody without a core information component anywhere "
-        "in the card; titles, buttons, layout containers and other SecondaryBody groups "
-        "do not count."
-    ]
-
-
-def _small_content_region(
-    region: dict[str, Any],
-    layout: dict[str, Any],
-    variant: int,
-) -> tuple[dict[str, Any], str | None]:
-    """正文误分到带嵌套动作的父区时，交接真实纯正文槽，不重复分配动作高度。"""
-    groups = region.get("groups", [])
-    if not groups or any(not isinstance(group, dict) for group in groups):
-        return region, None
-    if any(
-        group.get("component") in {"SingleLineTitle", "DoubleLineTitle", *_ACTION_FACT_COMPONENTS}
-        for group in groups
-    ):
-        return region, None
-    path = tuple(region.get("path", []))
-    rules = layout.get("patterns", [])[variant - 1].get("rules", [])
-    action_paths = [
-        tuple(rule.get("path", [])) for rule in rules if rule.get("eventPolicy") == "require"
-    ]
-    if not any(len(action) > len(path) and action[: len(path)] == path for action in action_paths):
-        return region, None
-    slots = []
-    for rule in rules:
-        slot = rule.get("path", [])
-        if len(slot) != len(path) + 1 or tuple(slot)[: len(path)] != path:
-            continue
-        if rule.get("types") != ["Column"]:
-            continue
-        if any(action[: len(slot)] == tuple(slot) for action in action_paths):
-            continue
-        slots.append(slot)
-    if len(slots) != 1:
-        return region, None
-    return {**region, "path": slots[0]}, (
-        f"content assignment moved from parent {list(path)} to pure content slot {slots[0]}; "
-        "its capacity excludes the separate action reservation. Keep all facts and original "
-        "fonts; regroup short same-object auxiliary facts if the complete content overflows."
-    )
-
-
-def _composition_region_shape(value: Any, schema: dict[str, Any]) -> bool:
-    if not isinstance(value, dict) or set(value) != set(schema.get("required")):
-        return False
-    if not isinstance(value.get("id"), str) or not value.get("id").strip():
-        return False
-    path = value.get("path")
-    if not isinstance(path, list):
-        return False
-    for index in path:
-        if not isinstance(index, int) or isinstance(index, bool) or index < 0:
-            return False
-    for key in ("referenceWidth", "referenceHeight", "gap"):
-        if not _finite_extent(value.get(key)):
-            return False
-    groups = value.get("groups")
-    return isinstance(groups, list) and 1 <= len(groups) <= 24
-
-
-def _composition_group(
-    value: Any,
-    schema: dict[str, Any],
-    index_map: dict[int, int],
-    facts: list[dict[str, Any]],
-    size: Any,
-) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        return None
-    if set(value) - set(schema.get("properties")) or not set(schema.get("required")) <= set(value):
-        return None
-    component = value.get("component")
-    allowed_components = _component_hints(size)
-    if component not in allowed_components or not _finite_extent(value.get("referenceHeight")):
-        return None
-    indexes, placements = value.get("factIndexes"), value.get("placements")
-    if not isinstance(indexes, list) or not isinstance(placements, list):
-        return None
-    value = dict(value)
-    placement_notes: list[str] = []
-    if not indexes:
-        if component != "SingleLineTitle" or placements not in ([], ["title"]):
-            return None
-        placements = []
-    elif len(indexes) == 1 and placements == ["value", "unit"]:
-        if component != "EmphasizedData":
-            return None
-        placements = ["value"]
-        placement_notes.append(
-            "EmphasizedData.unit is not another copy of its numeric fact: resolve the real "
-            "unit from the field contract, never bind the numeric value to unit."
-        )
-    if len(indexes) != len(placements) or len(indexes) > 24:
-        return None
-    value["placements"] = placements
-    remapped: list[int] = []
-    for index, placement in zip(indexes, placements, strict=True):
-        if not isinstance(index, int) or isinstance(index, bool) or index not in index_map:
-            return None
-        if not isinstance(placement, str) or not placement.strip():
-            return None
-        remapped.append(index_map[index])
-    actions = [index for index in remapped if "actionId" in facts[index]]
-    if actions and (len(remapped) != 1 or component not in _ACTION_FACT_COMPONENTS):
-        return None
-    if not actions and component in _ACTION_FACT_COMPONENTS:
-        return None
-    for key in ("columns", "labelLines"):
-        number = value.get(key)
-        if key in value and (type(number) is not int or number not in (1, 2)):
-            return None
-    lines = value.get("lines")
-    if lines is not None:
-        if not isinstance(lines, list) or not lines:
-            return None
-        for line in lines:
-            if type(line) is not int or line not in (1, 2):
-                return None
-    for key in ("variant", "density"):
-        if key in value and not isinstance(value.get(key), str):
-            return None
-        allowed = schema.get("properties", {}).get(key, {}).get("enum")
-        if key in value and allowed is not None and value.get(key) not in allowed:
-            return None
-    height = composition_group_minimum_height(size, value)
-    planned_height = value.get("referenceHeight")
-    if height is not None:
-        exact_small_readout = size == "2x2" and component in {"EmphasizedData", "EmphasisText"}
-        planned_height = height if exact_small_readout else max(height, planned_height)
-    group = {**value, "factIndexes": remapped, "referenceHeight": planned_height}
-    if size == "2x2" and component == "TableText":
-        item_indexes = set()
-        for placement in placements:
-            match = re.fullmatch(r"items\[(\d+)\]\.(?:label|value)", placement)
-            if match is not None:
-                item_indexes.add(int(match.group(1)))
-        if item_indexes and (
-            len(item_indexes) not in (2, 3) or item_indexes != set(range(len(item_indexes)))
-        ):
-            group["implementationConflict"] = (
-                "TableText only supports two or three contiguous items, not "
-                f"{len(item_indexes)}. Keep every fact; regroup ordinary information in "
-                "SecondaryBody at its legal single-row/multiline font, combining short same-object "
-                "attributes into full-width labelled lines when they fit. Do not copy "
-                "the invalid table or shrink text to create a smaller table."
-            )
-    if placement_notes:
-        group["placementNotes"] = placement_notes
-    return group
 
 
 def parse_compact_plan_call(
@@ -1841,7 +1383,6 @@ def parse_compact_plan_call(
     task_spec: dict[str, Any],
     *,
     static_text_source: str | None = None,
-    require_composition: bool = False,
     require_static_identity: bool = False,
     require_static_omission_refs: bool = False,
 ) -> CompactPlanValidationResult:
@@ -1877,8 +1418,6 @@ def parse_compact_plan_call(
         allowed_arguments.add("paletteFamily")
     if asset_ids:
         allowed_arguments.add("assetAssignments")
-    if require_composition:
-        allowed_arguments.add("composition")
     unknown_arguments = set(arguments) - allowed_arguments
     if unknown_arguments:
         names = ", ".join(sorted(unknown_arguments))
@@ -1949,7 +1488,7 @@ def parse_compact_plan_call(
         static_errors = static_plan_capacity_errors(plan, task_spec.get("size"))
         if static_errors:
             raise CompactPlanValidationError(static_errors)
-    whole_card_click = None if require_composition else select_whole_card_click(task_spec, facts)
+    whole_card_click = select_whole_card_click(task_spec, facts)
     if whole_card_click is not None:
         plan["wholeCardActionId"] = whole_card_click.action_id
         for fact in facts:
@@ -1991,42 +1530,12 @@ def parse_compact_plan_call(
     warnings.extend(action_layout_warnings)
     if layout_hints:
         plan["layoutHints"] = layout_hints
-    composition = None
-    composition_warnings: list[str] = []
-    if require_composition:
-        if "composition" not in arguments:
-            raise CompactPlanValidationError(
-                ["composition is required when runtime prompt context is enabled."]
-            )
-        composition, composition_warnings = _normalize_composition(
-            arguments.get("composition"),
-            arguments.get("info_required"),
-            facts,
-            task_spec.get("size"),
-        )
-        if composition is None:
-            errors = composition_warnings or ["composition is invalid or incomplete."]
-            raise CompactPlanValidationError(errors)
-        overflow_errors = []
-        for region in composition.get("regions", []):
-            remaining = region.get("remainingHeight")
-            if isinstance(remaining, (int, float)) and remaining < 0:
-                overflow_errors.append(
-                    f"composition region {region.get('id')} has negative remainingHeight "
-                    f"{remaining:g}vp; rebuild the complete grouping without omitting facts."
-                )
-        if overflow_errors:
-            raise CompactPlanValidationError(overflow_errors)
-    anchor_errors = _anchor_plan_errors(facts, layout_hints, composition)
+    anchor_errors = _anchor_plan_errors(facts, layout_hints)
     if anchor_errors:
         raise CompactPlanValidationError(anchor_errors)
-    secondary_body_errors = _secondary_body_composition_errors(composition)
-    if secondary_body_errors:
-        raise CompactPlanValidationError(secondary_body_errors)
-    freshness_errors = _freshness_metadata_plan_errors(facts, composition, task_spec)
+    freshness_errors = _freshness_metadata_plan_errors(facts, task_spec)
     if freshness_errors:
         raise CompactPlanValidationError(freshness_errors)
-    warnings.extend(composition_warnings)
     duration_paths = set(compound_duration_bindings(plan, task_spec))
     for fact in facts:
         if fact.get("dataId") not in duration_paths:
@@ -2044,36 +1553,11 @@ def parse_compact_plan_call(
             "Compound duration text uses EmphasisText, not a numeric hero; "
             "retain the complete binding and all units."
         )
-    if composition is not None:
-        incompatible = False
-        for region in composition.get("regions", []):
-            for group in region.get("groups", []):
-                if group.get("component") != "EmphasizedData":
-                    continue
-                for index in group.get("factIndexes", []):
-                    if not isinstance(index, int) or not 0 <= index < len(facts):
-                        continue
-                    if facts[index].get("dataId") in duration_paths:
-                        incompatible = True
-        if incompatible:
-            note = (
-                "composition uses a numeric hero for compound duration text; regroup "
-                "with EmphasisText and retain every fact, binding and unit."
-            )
-            if require_composition:
-                raise CompactPlanValidationError([note])
-            composition = None
-            warnings.append(note)
-    if composition is not None:
-        plan["composition"] = composition
-    if composition_warnings:
-        plan["compositionNotes"] = composition_warnings
     return CompactPlanValidationResult(plan=plan, warnings=tuple(warnings))
 
 
 def _freshness_metadata_plan_errors(
     facts: list[dict[str, Any]],
-    composition: dict[str, Any] | None,
     task_spec: dict[str, Any],
 ) -> list[str]:
     """限制刷新元数据只在明确请求或单短文本稀疏卡中展示。"""
@@ -2122,15 +1606,6 @@ def _freshness_metadata_plan_errors(
     if freshness_fact.get("priority") != "should":
         errors.append(
             "Unrequested freshness metadata is optional filler and must use priority should."
-        )
-    if composition is not None and not _composition_groups_freshness_with_core(
-        composition,
-        core_index,
-        freshness_index,
-    ):
-        errors.append(
-            "Sparse-card freshness metadata must share one EmphasisText group with the core "
-            "fact and use secondaryText; do not allocate a separate region or component."
         )
     return errors
 
@@ -2186,35 +1661,9 @@ def _is_title_action_fact(fact: dict[str, Any]) -> bool:
     return isinstance(hints, list) and hints[:1] == ["SingleLineTitle"]
 
 
-def _composition_groups_freshness_with_core(
-    composition: dict[str, Any],
-    core_index: int,
-    freshness_index: int,
-) -> bool:
-    for region in composition.get("regions", []):
-        if not isinstance(region, dict):
-            continue
-        for group in region.get("groups", []):
-            if not isinstance(group, dict) or group.get("component") != "EmphasisText":
-                continue
-            indexes = group.get("factIndexes")
-            placements = group.get("placements")
-            if not isinstance(indexes, list) or not isinstance(placements, list):
-                continue
-            paired = list(zip(indexes, placements, strict=False))
-            has_core = (core_index, "mainText") in paired
-            has_freshness = (freshness_index, "secondaryText") in paired
-            if has_core and has_freshness:
-                return True
-    return False
-
-
 def _has_wide_layout_candidate(plan: dict[str, Any]) -> bool:
     hints = plan.get("layoutHints")
     candidates = list(hints) if isinstance(hints, list) else []
-    composition = plan.get("composition")
-    if isinstance(composition, dict):
-        candidates.append(composition.get("layout"))
     wide_layouts = layout_ids_for_size("2x4")
     return any(candidate in wide_layouts for candidate in candidates)
 
@@ -2222,15 +1671,9 @@ def _has_wide_layout_candidate(plan: dict[str, Any]) -> bool:
 def compact_plan_context(
     plan: dict[str, Any],
     *,
-    implementation_conflicts: list[str] | None = None,
     execution_selected: bool = False,
 ) -> str:
     """构造第二阶段使用的硬事实与软候选说明。"""
-    conflicts = (
-        composition_implementation_conflicts(plan)
-        if implementation_conflicts is None
-        else implementation_conflicts
-    )
     context_plan = dict(plan)
     whole_card_instruction = ""
     if isinstance(plan.get("wholeCardActionId"), str):
@@ -2260,9 +1703,6 @@ def compact_plan_context(
         and _has_two_distinct_actions(facts)
     )
     fixed_title_action = plan.get("layoutHints") == ["S-title-content-action"]
-    if conflicts:
-        context_plan.pop("composition", None)
-        context_plan["compositionNotes"] = conflicts
     asset_instruction = ""
     pure_action_instruction = ""
     title_action_only = False
@@ -2296,52 +1736,27 @@ def compact_plan_context(
                 "assetAssignments 中整卡动作的 assetId 为 null，不生成按钮或消费按钮素材；"
                 "title 的已分配素材仍按原标题合同落实。"
             )
-    small_conflict = False
-    if conflicts:
-        for layout_hint in plan.get("layoutHints", []):
-            if isinstance(layout_hint, str) and layout_hint.startswith("S-"):
-                small_conflict = True
-                break
     preference_instruction = (
         "componentHints 第一项是首选：语义、类型、素材、事件和容量成立时应落实；"
         "具体条件不成立才改选合法备选或组件组合。"
     )
     intent_context = _component_intent_context(plan)
-    if small_conflict:
-        preference_instruction = (
-            "当前小卡compositionNotes已证明原合组或容量有冲突，原候选首项不再是实例清单。"
-            "先重算完整信息组与动作的合法承载，再选匹配组件；不要按旧候选逐事实实例化，"
-            "普通辅助状态不新增强调焦点。候选与全部硬事实保留，不靠降字或删事实过关。"
-        )
-        intent_context = ""
     payload = json.dumps(context_plan, ensure_ascii=False, separators=(",", ":"))
     if execution_selected:
-        conflict_instruction = ""
-        if small_conflict:
-            conflict_instruction = (
-                "本轮小卡旧分区已有明确合组或容量冲突，不能继续保留失效的body包装或"
-                "按候选首项逐事实新增实例。按当前完整布局变体重新核算全部事实和动作，"
-                "普通辅助状态不叠加强调焦点；只交接诊断与文字指导，不提供恢复蓝图。"
-            )
         return (
             "# 已接受的 Compact Info Plan\n\n"
             "info_required 冻结全部 must/should 事实与真实动作；未明确进入"
             "drop_optional_component 阶段时，两种优先级都必须可见。组件候选不是新增实例清单；"
-            "compositionRecovery 提供完整参考时实现其中已选方案，不再按 componentHints 第一项"
-            "重做选型，也不照抄已经诊断为冲突的旧 composition。"
-            "没有恢复参考时，合法composition保持原分区和合组；没有完整composition时"
             "按对象信息关系和当前尺寸完整案例组织，不能把候选第一项当作逐事实实例清单。"
-            f"{conflict_instruction}"
             "普通时间、数量说明和状态不因候选排序新增强调焦点；标题与主值职责保持不变。"
             "局部修复保持待修树的合法结构，只处理明确错误。"
             f"{asset_instruction}"
             f"{whole_card_instruction}"
             f"{wide_action_instruction}"
             f"{pure_action_instruction}"
-            "按参考蓝图的父子关系和事实索引落实真实绑定、完整文案与所属动作；"
-            "索引从0开始，不能把索引或压力样值写入最终 DSL。标题绑定保留指定标题职责。"
+            "落实真实绑定、完整文案与所属动作；标题绑定保留指定标题职责。"
             "核对必要的对象标签、完整单位与全部动作，原字号不变，不能裁切或删信息。"
-            "参考预算不代替标签与单位的核算；明确发现参考方案仍不成立时才整体重组。\n\n"
+            "按当前组件和布局合同核算标签、单位及完整内容的容量。\n\n"
             f"```json\n{payload}\n```"
         )
     layout_instruction = (
@@ -2365,8 +1780,6 @@ def compact_plan_context(
         "除标题组件职责外，"
         f"{layout_instruction}"
         f"{pure_action_instruction}"
-        "当 composition 已选中且合同、容量均成立时，它是本轮的执行选择；尤其"
-        "S-title-anchor 不能仅因存在 PillButton 就被降级替换为底部文字动作布局。"
         f"{preference_instruction}先按对象和信息关系合组，再映射可见 Prop。"
         "不能因为完整案例使用了其它组件就将匹配的信息组拆成逐字段的单文字组件。"
         "每项事实必须在最终 Compact DSL 中有完整可读的落点；"
@@ -2376,17 +1789,6 @@ def compact_plan_context(
         f"{asset_instruction}\n"
         f"{whole_card_instruction}\n"
         f"{wide_action_instruction}\n"
-        "若有 composition，按它的 layout/variant、region.path 与顺序 groups 实现，"
-        "factIndexes 引用下面去重后的 info_required，placements 指明每条事实的可见 Prop。"
-        "空映射 SingleLineTitle 只是装饰标题的容量预留，不是遗漏事实；"
-        "重复索引表示同一实例共用同一事实，不能据此增加实例或重复正文。"
-        "placementNotes 中的单位必须按原字段合同解决，不能把数值当单位再次绑定。"
-        "不要重新逐字段实例化组件，或把单列合组改回窄双列；动作保持完整目标名称。"
-        "每区 sum(referenceHeight)+gap 必须小于可用高度，横排每列还须容纳完整文字。"
-        "这些数字仅用于容量核算，区域输出仍为 matchParent/layoutWeight；"
-        "正文必须承接扣除标题、动作、padding和间距后的剩余空间，不能向整父区撑高。"
-        "compositionNotes 是需要纠正的组合诊断，不允许通过裁切、缩字或删事实处理。"
-        "确有合同/容量冲突时整体重选可承载的分区合组并重新核算，不能盲从错误计划。\n"
         "一个语义分区可使用一个 SingleLineTitle；2x4 左右独立分区"
         "可分别使用 SingleLineTitle。componentHints 中的 SingleLineTitle 仍是软候选；"
         "最终布局或语义不适配时，可由其它合法语义组件承载该事实，但事实仍必须完整可见。"
@@ -2829,20 +2231,6 @@ def evaluate_compact_plan_coverage(
         else:
             errors.extend(result.errors)
         warnings.extend(result.warnings)
-    required_layout = _required_anchor_layout(plan, task_spec)
-    if required_layout is not None:
-        try:
-            match_compact_layout(
-                components,
-                size="2x2",
-                layout_scope=required_layout,
-            )
-        except CompactLayoutRuntimeError:
-            errors.append(
-                "Accepted Compact Plan selected S-title-anchor as its executable "
-                "composition; keep the CircleButton anchor layout instead of replacing it "
-                "with a text-action layout that compresses the required content."
-            )
     required_route = compact_plan_required_route(plan, task_spec)
     if required_route is not None:
         locked_layout = required_route.get("layout")
@@ -3013,8 +2401,6 @@ def build_compact_recovery_plan(
             retained.append(copy.deepcopy(fact))
     recovery_plan = copy.deepcopy(plan)
     recovery_plan["info_required"] = retained
-    recovery_plan.pop("composition", None)
-    recovery_plan.pop("compositionNotes", None)
     if compact_recovery_plan_errors(recovery_plan, required_facts):
         return None
     return recovery_plan
@@ -3507,33 +2893,12 @@ def _static_optional_drop_candidate(
     )
 
 
-def _required_anchor_layout(
-    plan: dict[str, Any],
-    task_spec: dict[str, Any],
-) -> str | None:
-    """已闭合的 anchor 方案是执行选择，不允许 DSL 阶段无理由降级为文字按钮。"""
-    if task_spec.get("size") != "2x2":
-        return None
-    composition = plan.get("composition")
-    if not isinstance(composition, dict) or composition.get("layout") != "S-title-anchor":
-        return None
-    if composition_implementation_conflicts(plan):
-        return None
-    for fact in plan.get("info_required", []):
-        if not isinstance(fact, dict) or "actionId" not in fact:
-            continue
-        hints = fact.get("componentHints")
-        if isinstance(hints, list) and hints and hints[0] == "CircleButton":
-            return "S-title-anchor"
-    return None
-
-
 def compact_plan_required_route(
     plan: dict[str, Any],
     task_spec: dict[str, Any],
 ) -> dict[str, str] | None:
     """返回已接受 Plan 中可安全锁定的精确单焦点执行路线。"""
-    if task_spec.get("size") != "2x2" or composition_implementation_conflicts(plan):
+    if task_spec.get("size") != "2x2":
         return None
     facts = plan.get("info_required")
     if not isinstance(facts, list) or not facts:

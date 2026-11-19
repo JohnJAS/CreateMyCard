@@ -118,7 +118,7 @@ def test_two_distinct_actions_keep_original_contract(with_body: bool) -> None:
 ])
 def test_context_does_not_trust_stale_hint_without_distinct_actions(facts) -> None:
     plan = {"info_required": facts, "layoutHints": ["S-content-dual-action"]}
-    context = compact_plan_context(plan, implementation_conflicts=[])
+    context = compact_plan_context(plan)
     assert "成为固定布局" not in context
     assert "actions-only 变体" not in context
 

@@ -72,12 +72,11 @@ def resolve_content_policy(
     effective_data: bool,
     requested_events: bool,
     effective_events: bool,
-    single_step: bool = False,
 ) -> GenerationContentPolicy:
     """只识别预检成功且无数据、无事件的请求，不用空候选掩盖能力失败。"""
     result = EXISTING_CONTENT_POLICY
     eligible = operation == "generateWidgetCardCompactDsl" and enabled
-    if not eligible or is_edit or single_step:
+    if not eligible or is_edit:
         return result
     if requested_data or effective_data:
         return result

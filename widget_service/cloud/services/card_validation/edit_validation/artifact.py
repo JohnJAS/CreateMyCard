@@ -11,7 +11,6 @@ from models.artifact import WidgetArtifact
 from services.card_validation import ValidationOptions, validate_card
 from services.card_validation.diagnostics import Diagnostic
 from services.card_validation.theme_phase_validator import theme_phase_errors
-from services.single_step_edit import _components, _messages, _same
 from services.widget_edit_contract import (
     EditExpectation,
     EditIntent,
@@ -20,6 +19,7 @@ from services.widget_edit_contract import (
     same_edit_value,
     validate_edit_diff,
 )
+from services.widget_edit_utils import _components, _messages, _same
 
 
 @dataclass

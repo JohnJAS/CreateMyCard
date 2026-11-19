@@ -151,7 +151,7 @@ def test_single_attribute_rejects_non_single_supporting_body(attribute_task, ove
 ])
 def test_anchor_filter_preserves_title_action_and_duplicate_fact_handling(facts, accepted):
     before = copy.deepcopy(facts)
-    errors = _anchor_plan_errors(facts, ["S-title-anchor"], None)
+    errors = _anchor_plan_errors(facts, ["S-title-anchor"])
     assert (not errors) == accepted
     if not accepted:
         assert len(errors) == 1

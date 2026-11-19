@@ -1573,16 +1573,6 @@ class CompactRepairStrategyTracker:
         """当前是否已进入程序授权的 Drop 阶段。"""
         return self._active_fallback == "drop_optional_component"
 
-    def validation_omitted_fact_indexes(
-        self,
-        compact_plan: dict[str, Any] | None,
-        *,
-        validate_drop_plan_facts: bool,
-    ) -> tuple[int, ...]:
-        """Drop 只豁免程序明确批准的非 Action 事实。"""
-        explicitly_allowed = self.allowed_omitted_fact_indexes
-        return explicitly_allowed
-
     @property
     def optional_drop_candidate(self) -> CompactOptionalDropCandidate | None:
         """返回当前 Drop 轮次唯一允许删除的组件。"""

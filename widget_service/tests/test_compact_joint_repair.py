@@ -5,7 +5,6 @@ import json
 
 import pytest
 
-from config.config import get_settings
 from models.generation import TaskSpec
 from services.compact_repair_context import joint_repair_contract, repair_topology_fingerprint
 from services.compact_repair_strategy import CompactRepairStrategyTracker
@@ -64,7 +63,6 @@ def test_joint_actions_resolve_distinct_instances_without_dropping_parameters():
 
 
 def test_duplicate_fact_guidance_does_not_hide_missing_action_guidance(monkeypatch):
-    monkeypatch.setattr(get_settings(), "enable_design_compact_runtime_prompt_context", False)
     errors = _errors("coverage")
     errors.append({
         "code": "COMPACT_PLAN_COVERAGE_FAILED", "stage": "validation",
@@ -193,13 +191,9 @@ def test_contract_preserves_types_assignments_and_only_authorized_non_action_omi
     assert (plan, task) == original
 
 
-@pytest.mark.parametrize("runtime_context", [False, True])
 def test_actual_repair_feedback_carries_joint_contract_without_reencoding_history(
-    monkeypatch, runtime_context: bool,
+    monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        get_settings(), "enable_design_compact_runtime_prompt_context", runtime_context
-    )
     task = TaskSpec.model_validate(_task())
     messages = [
         {"role": "system", "content": "合同"},

@@ -6,7 +6,6 @@ import json
 import pytest
 
 from services.card_validation import CompactDslValidationError, validate_card, validate_compact_dsl
-from services.compact_composition_planner import feasible_composition_candidates
 from services.compact_dsl_a2ui_converter import (
     CompactDslConversionError,
     ComponentRow,
@@ -147,17 +146,6 @@ def test_pure_actions_reject_illegal_shape(case: str) -> None:
         convert_compact_dsl_to_a2ui(_source(rows), size="2x2")
 
 
-def test_pure_actions_have_a_complete_composition_candidate() -> None:
-    task = _task()
-    result = feasible_composition_candidates("2x2", _plan(task), task)
-    candidates = result.get("candidates")
-    assert isinstance(candidates, list)
-    assert any(
-        candidate.get("layout") == "S-content-dual-action" and candidate.get("variant") == 2
-        for candidate in candidates
-    )
-
-
 def test_legacy_column_cannot_bypass_actions_only_content_guard() -> None:
     task = _task()
     plan = _plan(task)
@@ -209,7 +197,6 @@ async def test_registered_pure_actions_complete_without_quality_repair(monkeypat
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(A2UIModelClient, "generate", generate)
     monkeypatch.setattr(WidgetGenerationService, "_enable_card_template", lambda _self: False)
     monkeypatch.setattr(ArtifactStore, "save", lambda *_args: ArtifactSaveResult(

@@ -70,15 +70,6 @@ class Settings(BaseSettings):
     enable_photo_background_theme: bool = (
         CONFIG.get("enable_photo_background_theme", "true") == "true"
     )
-    enable_subjectless_wide_theme: bool = (
-        CONFIG.get("enable_subjectless_wide_theme", "false") == "true"
-    )
-    enable_square_music_photo_expansion: bool = (
-        CONFIG.get("enable_square_music_photo_expansion", "false") == "true"
-    )
-    enable_square_photo_expansion: bool = (
-        CONFIG.get("enable_square_photo_expansion", "false") == "true"
-    )
     hag_slb_url: str = CONFIG.get("hag_slb_url")
     osms_prepare_url: str = urljoin(hag_slb_url, CONFIG.get("osms_prepare_url"))
     osms_complete_url: str = urljoin(hag_slb_url, CONFIG.get("osms_complete_url"))
@@ -255,15 +246,6 @@ class Settings(BaseSettings):
     widget_edit_max_repair_attempts: int = Field(
         default=CONFIG.get("widget_edit_max_repair_attempts", 3), ge=0, le=5,
     )
-    enable_single_step_generation_fallback: bool = (
-        CONFIG.get("enable_single_step_generation_fallback", "false") == "true"
-    )
-    enable_single_step_widget_edit: bool = (
-        CONFIG.get("enable_single_step_widget_edit", "true") == "true"
-    )
-    enable_drop_plan_fact_validation: bool = (
-        CONFIG.get("enable_drop_plan_fact_validation", "false") == "true"
-    )
     enable_static_content_generation_policy: bool = (
         CONFIG.get("enable_static_content_generation_policy", "false") == "true"
     )
@@ -329,12 +311,6 @@ class Settings(BaseSettings):
     )
     enable_design_compact_few_shots: bool = (
         CONFIG.get("enable_design_compact_few_shots", "true") == "true"
-    )
-    enable_design_compact_few_shot_selection: bool = (
-        CONFIG.get("enable_design_compact_few_shot_selection", "false") == "true"
-    )
-    enable_design_compact_runtime_prompt_context: bool = (
-        CONFIG.get("enable_design_compact_runtime_prompt_context", "false") == "true"
     )
     enable_design_compact_deterministic_repair: bool = (
         CONFIG.get("enable_design_compact_deterministic_repair", "true") == "true"

@@ -5,7 +5,6 @@ from copy import deepcopy
 
 import pytest
 
-from config.config import get_settings
 from services.card_validation import CompactDslValidationError, validate_compact_dsl
 from services.card_validation.compact_validation import api
 from services.card_validation.compact_validation.constants import _VISUAL_RECIPE_MARKER_PREFIX
@@ -116,7 +115,6 @@ def test_width_errors_survive_alongside_structured_height_errors() -> None:
 def test_structured_height_feedback_keeps_repair_scope_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "enable_design_compact_runtime_prompt_context", False)
     source = _source("EmphasisText", {"mainText": "完整信息", "height": 200})
     error = _error(source)
     issues = DesignCompactProcessor._validation_failure(source, error.errors, groups=error.groups)

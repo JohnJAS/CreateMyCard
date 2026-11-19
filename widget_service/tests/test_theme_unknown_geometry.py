@@ -12,9 +12,8 @@ import pytest
 from config.config import get_settings
 from services import post_layout_theme as themes
 from services import post_layout_theme_registry as registry
-from services import square_photo_expansion as expansion
 from services.theme_content_regions import photo_layout_evidence
-from theme_photo_samples import expansion_photo, protected_photo
+from theme_photo_samples import protected_photo
 
 
 def source_nodes():
@@ -65,7 +64,7 @@ def test_registry_rejects_pixel_matching_configuration(setting):
         registry.validate_registry(config)
 
 
-@pytest.mark.parametrize("module", [themes, registry, expansion])
+@pytest.mark.parametrize("module", [themes, registry])
 def test_theme_runtime_has_no_default_card_pixel_sizes(module):
     for node in ast.walk(ast.parse(inspect.getsource(module))):
         if isinstance(node, ast.Constant) and isinstance(node.value, int):
@@ -93,32 +92,3 @@ def test_protected_photo_is_rejected_even_if_model_selects_it(monkeypatch):
     assert themes.foreground_signature(result) == themes.foreground_signature(source)
     payload = json.loads(client.generate.call_args.args[0][1].get("content"))
     assert payload.get("eligiblePhotos") == []
-
-
-def test_retained_expansion_does_not_infer_or_double_surface_pixels():
-    source = themes.encode([
-        {"createSurface": {"surfaceId": "test"}},
-        {"updateComponents": {"components": source_nodes()}},
-    ])
-    result = expansion.expand_square(source, expansion_photo(), {"size": "2x2"})
-    assert themes.decode(result)[0] == themes.decode(source)[0]
-    assert themes.foreground_signature(result) == themes.foreground_signature(source)
-    shell = next(node for node in themes.components(themes.decode(result))
-                 if node.get("id") == "root")
-    assert shell.get("styles", {}).get("width") == "matchParent"
-    assert shell.get("styles", {}).get("height") == "matchParent"
-
-
-@pytest.mark.parametrize("basis", [
-    "layout-only", "explicit-test-viewport", "device-independent-proof",
-])
-def test_retained_expansion_cannot_use_fabricated_measurement_evidence(monkeypatch, basis):
-    monkeypatch.setattr(expansion, "expansion_gate", lambda task: {
-        "eligible": True, "business": "countdown",
-    })
-    theme = expansion_photo()
-    evidence = {"basis": basis, "complete": True, "occupied": [
-        {"id": "title", "rect": [.1, .1, .2, .2]},
-    ]}
-    reason = expansion.expansion_reason(theme, {"size": "2x2"}, evidence)
-    assert reason is not None and "真实卡片宽高未知" in reason

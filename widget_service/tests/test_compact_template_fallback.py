@@ -48,7 +48,6 @@ async def test_template_attempt_falls_back_to_fresh_fusion(
         "enable_artifact_validation": True,
         "enable_validation_failure_retry": repair_enabled,
         "validation_failure_max_repair_attempts": 1,
-        "enable_design_compact_runtime_prompt_context": False,
     })
     monkeypatch.setattr(service_module, "get_settings", lambda: settings)
     monkeypatch.setattr("custom.a2ui_model_client.get_settings", lambda: settings)

@@ -93,12 +93,10 @@ _THEME = {
         "id": {"type": "string", "pattern": r"^[a-z][a-z0-9-]*$"},
         "enabled": {"type": "boolean"},
         "kind": {"enum": ["solid", "gradient", "fusion", "photo"]},
-        "pool": {"enum": ["standard", "photos", "texturePhotos", "subjectlessWidePhotos",
-                          "squareExpansions"]},
+        "pool": {"enum": ["standard", "photos", "texturePhotos"]},
         "name": _TEXT, "description": _TEXT, "sizes": _SIZES,
         "paletteFamilies": {"type": "array", "minItems": 1, "uniqueItems": True,
                             "items": {"type": "string", "pattern": r"^[a-z][a-z0-9-]*$"}},
-        "sourceSize": {"enum": ["2x2"]},
         "businessDescription": _TEXT,
         "matchingPolicy": {"const": "layout-only"},
         "selectionPriority": {"type": "integer", "minimum": 0},
@@ -191,8 +189,6 @@ def _validate_theme(theme: dict) -> None:
                                      **background_schema}, str(theme.get("id")))
     sizes = theme.get("sizes", [])
     required_sizes = set(sizes)
-    if theme.get("sourceSize"):
-        required_sizes.add(theme.get("sourceSize"))
     panels = theme.get("content", {}).get("panelBySize", {})
     if not required_sizes.issubset(panels):
         raise ValueError("Theme is missing a panel color for an applicable size")
@@ -281,33 +277,13 @@ def _validate_photo(theme: dict) -> None:
     _validate_photo_url(theme.get("background", {}).get("remoteUrl", ""))
     if "measurementPolicy" in theme:
         raise ValueError("Runtime photo matching must not depend on device measurements")
-    pool = theme.get("pool")
     sizes = theme.get("sizes", [])
-    native_pool = pool in {"photos", "texturePhotos"}
-    if len(sizes) != 1 or (not native_pool and sizes != ["2x4"]):
+    if len(sizes) != 1:
         raise ValueError("Photo pool has incompatible sizes")
     _check(theme.get("business"), _TEXT, "photo.business")
-    if pool == "subjectlessWidePhotos":
-        if theme.get("composition") != "subjectless":
-            raise ValueError("Native wide photos must be subjectless")
-    elif not native_pool:
-        bounds = theme.get("subjectBounds")
-        rectangle = {"type": "array", "minItems": 4, "maxItems": 4,
-                     "items": {"type": "number"}}
-        _check(bounds, rectangle, "subjectBounds")
-        if bounds[2] <= 0 or bounds[3] <= 0:
-            raise ValueError("Photo subject bounds must have positive dimensions")
-        regions = theme.get("subjectRegions")
-        if regions is not None:
-            minimum = 0 if pool == "texturePhotos" else 1
-            _check(regions, {"type": "array", "minItems": minimum, "items": rectangle},
-                   "subjectRegions")
     if theme.get("composition") == "native":
         _check(theme.get("matchingPolicy"), {"const": "layout-only"}, "matchingPolicy")
         _validate_native_photo(theme)
-    if pool == "squareExpansions":
-        if theme.get("sourceSize") != "2x2" or theme.get("composition") != "square-left":
-            raise ValueError("Expansion must preserve the 2x2 foreground in the left half")
 
 
 def _validate_photo_url(address: str) -> None:

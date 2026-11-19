@@ -128,7 +128,6 @@ def static_policy():
         {"effective_data": True},
         {"requested_events": True},
         {"effective_events": True},
-        {"single_step": True},
         {"operation": "generateWidgetCard"},
     ],
 )
@@ -623,7 +622,7 @@ def test_minimal_should_drop_keeps_must_in_same_component() -> None:
     assert directive.category == "layout_capacity"
     assert directive.optional_drop == candidate
     assert "由程序批准的should文字" in directive.instruction
-    assert tracker.validation_omitted_fact_indexes(accepted, validate_drop_plan_facts=False) == (1,)
+    assert tracker.allowed_omitted_fact_indexes == (1,)
     repaired = source("EmphasisText", {"mainText": "带证件"})
     assert not static_group_errors(repaired, accepted, (1,))
     assert len(compact_plan_omitted_facts(repaired, accepted, task(), (1,))) == 1

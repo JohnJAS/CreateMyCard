@@ -7,7 +7,6 @@ import pytest
 from services.card_validation import CompactDslValidationError, validate_compact_dsl
 from services.card_validation.theme_phase_validator import theme_phase_errors
 from services.compact_component_runtime import visual_recipe_part
-from services.compact_composition_planner import feasible_composition_candidates
 from services.compact_dsl_a2ui_converter import (
     CompactDslConversionError,
     ComponentRow,
@@ -244,33 +243,13 @@ def test_countdown_enters_online_layout_candidates() -> None:
     assert layout in allowed_layout_ids("2x4", "W-adaptive-single-business")
     assert layout in load_layout_contract().get("layouts", {})
     tool = build_compact_plan_tool(
-        {"size": "2x4"}, include_composition=True, layout_scope="W-plan-guided",
+        {"size": "2x4"}, layout_scope="W-plan-guided",
     )
     properties = tool.get("function", {}).get("parameters", {}).get("properties", {})
     assert layout in properties.get("layoutHints", {}).get("items", {}).get("enum", [])
-    composition = properties.get("composition", {}).get("properties", {})
-    assert layout in composition.get("layout", {}).get("enum", [])
-    result = feasible_composition_candidates(
-        "2x4",
-        {
-            "layoutHints": [layout],
-            "info_required": [
-                {"text": "运动会", "componentHints": ["SingleLineTitle"]},
-                {"text": "7", "componentHints": ["EmphasizedData"]},
-                {"text": "2027/02/06", "componentHints": ["SecondaryBody"]},
-            ],
-        },
-        {"size": "2x4", "dataModelSchema": {}},
-    )
-    candidates = result.get("candidates")
-    assert candidates
-    assert candidates[0].get("layout") == layout
-    assert [region.get("referenceHeight") for region in candidates[0].get("regions", [])] == [
-        21, 74, 21,
-    ]
 
 
-def test_countdown_plan_accepts_composition_and_keeps_actions_in_other_layouts() -> None:
+def test_countdown_plan_keeps_facts_and_actions_in_other_layouts() -> None:
     layout = "W-countdown-center"
     task = {
         "userQuery": "运动会倒计时，显示标题、天数和目标日期",
@@ -285,37 +264,22 @@ def test_countdown_plan_accepts_composition_and_keeps_actions_in_other_layouts()
             "call": "clickToDeeplink", "args": {"uri": "hww://calendar"},
         }],
     }
-    facts, regions = [], []
+    facts = []
     slots = (
-        ("title", "SingleLineTitle", "title"),
-        ("days", "EmphasizedData", "value"),
-        ("date", "SecondaryBody", "items[0].value"),
+        ("title", "SingleLineTitle"),
+        ("days", "EmphasizedData"),
+        ("date", "SecondaryBody"),
     )
-    for index, (field, component, placement) in enumerate(slots):
+    for field, component in slots:
         facts.append({
             "requirement": field, "dataId": f"/data/countdown/{field}",
             "componentHints": [component], "priority": "must",
         })
-        regions.append({
-            "id": field, "path": [index], "referenceWidth": 1, "referenceHeight": 1, "gap": 1,
-            "groups": [{
-                "component": component, "factIndexes": [index], "placements": [placement],
-                "referenceHeight": 1,
-            }],
-        })
-    arguments = {
-        "info_required": facts, "layoutHints": [layout],
-        "composition": {"layout": layout, "variant": 1, "regions": regions},
-    }
+    arguments = {"info_required": facts, "layoutHints": [layout]}
     payload = {"name": "submit_card_plan", "arguments": arguments}
-    result = parse_compact_plan_call(json.dumps(payload), task, require_composition=True)
-    composition = result.plan.get("composition")
-    assert composition is not None
-    assert composition.get("layout") == layout
-    assert [region.get("referenceHeight") for region in composition.get("regions", [])] == [
-        21, 74, 21,
-    ]
-    arguments.pop("composition")
+    result = parse_compact_plan_call(json.dumps(payload), task)
+    assert result.plan.get("layoutHints") == [layout]
+    assert len(result.plan.get("info_required", [])) == 3
     facts.append({
         "requirement": "打开日历", "actionId": "event.open.calendar",
         "componentHints": ["PillButton"], "priority": "must",

@@ -4,7 +4,7 @@ import re
 from json import JSONDecodeError
 
 from app.logger import json_for_log, logger
-from services.single_step_edit import _load_json
+from services.widget_edit_utils import _load_json
 
 # 正则只识别包装语法；说明区不接受其它 JSON 边界或围栏，不推断自然语言含义。
 # 行内代码中的一两个反引号不是代码块；三反引号才构成包装边界。

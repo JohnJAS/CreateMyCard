@@ -14,6 +14,7 @@ from services.compact_dsl_a2ui_converter import convert_compact_dsl_to_a2ui
 from services.source_artifact_repository import SourceArtifactRepository
 from services.template_generation import TemplateSourceGenerator
 from services.validator import ArtifactValidator
+from services.widget_edit_utils import source_digest
 from services.widget_generation_service import WidgetGenerationService
 from test_asset_url_mapper import SRC, URL, components
 from utils.upload_file_obs import UploadFileOSMS
@@ -35,6 +36,27 @@ def design_source():
             ["/ui/state", "ready"],
         ]
     )
+
+
+def semantic_edit_response(messages, phase):
+    payload = json.loads(messages[1].get("content"))
+    if phase == "edit_intent":
+        return json.dumps({"outcome": "ready", "explanation": "仅增加根容器圆角",
+                           "mode": "patch", "targetSize": "2x4", "dimensions": ["shape"],
+                           "targets": ["root"]}, ensure_ascii=False)
+    original = payload.get("previousGenui")
+    assert isinstance(original, str)
+    root = next(node for node in components(original) if node.get("id") == "root")
+    styles = root.get("styles", {})
+    before = {"exists": "borderRadius" in styles}
+    if before.get("exists"):
+        before["value"] = styles.get("borderRadius")
+    return json.dumps({
+        "sourceDigest": source_digest(original),
+        "changes": [{"componentId": "root", "property": "styles.borderRadius",
+                     "before": before,
+                     "value": styles.get("borderRadius", 0) + 1}],
+    })
 
 
 def json_rows(text):
@@ -81,12 +103,10 @@ def storage(tmp_path, monkeypatch, isolated_theme_stage):
     monkeypatch.setattr(settings, "WORKSPACE_ROOT", tmp_path)
     monkeypatch.setattr(settings, "enable_widget_edit", True)
     # 本文件验证旧路由的素材还原/重新映射；字段补丁编辑保留已交付地址。
-    monkeypatch.setattr(settings, "enable_semantic_widget_edit", False)
-    monkeypatch.setattr(settings, "enable_single_step_widget_edit", False)
+    monkeypatch.setattr(settings, "enable_semantic_widget_edit", True)
     monkeypatch.setattr(settings, "enable_artifact_download_mock", True)
     monkeypatch.setattr(settings, "enable_validation_failure_retry", False)
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(settings, "asset_src_url_mapping", {SRC: URL})
     monkeypatch.setattr(
         WidgetGenerationService, "_enable_card_template", staticmethod(lambda: False)
@@ -189,6 +209,14 @@ async def test_generation_maps_before_validation_and_saves_separate_sources(
 async def test_edit_and_legacy_url_migration_preserve_source_artifact(
     storage, monkeypatch, source_version
 ):
+    # 编辑原卡必须已完成主题；其它素材测试隔离主题，不能把内部角色交给编辑。
+    from services.post_layout_theme import apply_theme, presets
+
+    async def theme(artifact, task, *_args, **_kwargs):
+        preset = next(item for item in presets(task) if item.get("id") == "gradient-blue")
+        return artifact.model_copy(update={"genui": apply_theme(artifact.genui, preset, task, {})})
+
+    monkeypatch.setattr("services.post_layout_theme.theme_artifact", theme)
     monkeypatch.setattr(get_settings(), "enable_artifact_validation", False)
     prompts = []
     phases = []
@@ -196,6 +224,8 @@ async def test_edit_and_legacy_url_migration_preserve_source_artifact(
     def generate(_client, prompt, profile, *, phase="initial", **_kwargs):
         prompts.append(json.dumps(prompt, ensure_ascii=False))
         phases.append(phase)
+        if phase in {"edit_intent", "edit_execute"}:
+            return semantic_edit_response(prompt, phase)
         if phase == "plan":
             assert profile.get("id") == "compact-info-plan"
             return plan_output()
@@ -243,7 +273,7 @@ async def test_edit_and_legacy_url_migration_preserve_source_artifact(
         edited = await service.generate_widget_card_compact_dsl(
             request(
                 sourceArtifactUrl=created.artifactUrl,
-                userQuery="调整背景颜色",
+                userQuery="仅增加根容器圆角",
             )
         )
         assert edited.status == GenerationStatus.SUCCESS
@@ -254,9 +284,11 @@ async def test_edit_and_legacy_url_migration_preserve_source_artifact(
         assert edited_source.artifact.meta.capabilityRegistryVersion == "app-11.7.7.300_rom-7.0"
         created = edited
     assert source_path.read_bytes() == original_bytes
-    assert phases == ["plan", "initial"] * 3
-    for prompt in prompts:
+    assert phases == ["plan", "initial", *(["edit_intent", "edit_execute"] * 2)]
+    for prompt in prompts[:2]:
         assert URL not in prompt
+    for prompt in prompts[2:]:
+        assert URL in prompt
 
 
 @pytest.mark.asyncio
@@ -272,6 +304,8 @@ async def test_repair_uses_original_paths_and_remaps_final_output(storage, monke
     def generate(_client, prompt, profile, *, phase="initial", **_kwargs):
         prompts.append(json.dumps(prompt, ensure_ascii=False))
         phases.append(phase)
+        if phase in {"edit_intent", "edit_execute"}:
+            return semantic_edit_response(prompt, phase)
         if phase == "plan":
             assert profile.get("id") == "compact-info-plan"
             return plan_output()
@@ -302,13 +336,15 @@ async def test_repair_uses_original_paths_and_remaps_final_output(storage, monke
 
 
 @pytest.mark.asyncio
-async def test_standard_edit_restores_paths_before_model_call(storage, monkeypatch):
+async def test_semantic_edit_preserves_source_paths_without_remapping(storage, monkeypatch):
     monkeypatch.setattr(get_settings(), "enable_artifact_validation", False)
     prompts = []
     standard = convert_compact_dsl_to_a2ui(design_source(), size="2x4")
 
-    def generate(_client, prompt, _profile, **_kwargs):
+    def generate(_client, prompt, _profile, *, phase="initial", **_kwargs):
         prompts.append(json.dumps(prompt, ensure_ascii=False))
+        if phase in {"edit_intent", "edit_execute"}:
+            return semantic_edit_response(prompt, phase)
         return standard
 
     monkeypatch.setattr(A2UIModelClient, "generate", generate)
@@ -316,12 +352,11 @@ async def test_standard_edit_restores_paths_before_model_call(storage, monkeypat
     created = await service.generate_widget_card_a2ui_form(request())
     assert created.status == GenerationStatus.SUCCESS
     edited = await service.generate_widget_card_a2ui_form(request(
-        sourceArtifactUrl=created.artifactUrl, userQuery="调整背景",
+        sourceArtifactUrl=created.artifactUrl, userQuery="仅增加根容器圆角",
     ))
     assert edited.status == GenerationStatus.SUCCESS
-    assert len(prompts) == 2
+    assert len(prompts) == 3
     assert "previousGenui" in prompts[1]
-    assert URL not in prompts[1]
-    assert SRC in prompts[1]
+    assert URL in prompts[1]
     source = await asyncio.to_thread(SourceArtifactRepository().load, edited.artifactUrl)
     assert URL in source.artifact.genui

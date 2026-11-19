@@ -158,10 +158,12 @@ def test_wrapped_plan_keeps_protected_static_text_error() -> None:
     assert wrapped.value.errors == original.value.errors
 
 
-def test_wrapped_plan_still_requires_composition() -> None:
-    raw = _PREFIX + json.dumps(_arguments()) + _SUFFIX
-    with pytest.raises(CompactPlanValidationError, match="composition"):
-        parse_compact_plan_call(raw, _spec(), require_composition=True)
+def test_wrapped_plan_rejects_retired_capacity_plan() -> None:
+    arguments = _arguments()
+    arguments["composition"] = {"layout": "S-title-content"}
+    raw = _PREFIX + json.dumps(arguments) + _SUFFIX
+    with pytest.raises(CompactPlanValidationError, match="Unsupported Plan arguments"):
+        parse_compact_plan_call(raw, _spec())
 
 
 def test_retry_feedback_has_format_location_and_original_business_errors() -> None:

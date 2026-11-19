@@ -27,11 +27,11 @@ def test_merged_contract_separates_theme_and_visible_fact_ownership(size: str) -
     assert not re.search(r"#[0-9a-fA-F]{8}\b", content)
 
 
-def test_merged_plan_and_repair_preserve_pr568_fact_contract() -> None:
+def test_active_plan_and_repair_preserve_visible_fact_ownership() -> None:
     plan = read_prompt(SOURCE, "plan")
     repair = read_prompt(SOURCE, "repair")
-    assert "仅一个可见 placement" in plan
-    assert "不把同一事实同时分配给 value 和 displayValue" in plan
+    # 可选 composition/placement 已退出；正式 Plan 仍要求事实完整且不重复。
+    assert "事实来源准确、原子项无遗漏、不重复" in plan
     assert "duplicateFacts/occurrences" in repair
     assert "仅移除重复引用，保留其它事实" in repair
     assert "不得改 Plan、删唯一展示或数据行" in repair

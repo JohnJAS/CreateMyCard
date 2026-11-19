@@ -7,9 +7,7 @@ import pytest
 from config.config import get_settings
 from services import post_layout_theme as themes
 from services.fusion_ball_expander import build_fusion_ball_content_id
-from services.square_photo_expansion import expand_square
 from services.theme_style_roles import role
-from theme_photo_samples import expansion_photo
 
 FOREGROUND_ID = build_fusion_ball_content_id("root")
 TASK = {"size": "2x2", "appVersion": "99.0.0", "userQuery": "Sleep"}
@@ -138,25 +136,15 @@ def test_normal_themes_do_not_add_renderer_marker(kind):
     assert themes.foreground_signature(source) == themes.foreground_signature(result)
 
 
-@pytest.mark.parametrize("pool", ["photos", "subjectlessWidePhotos", "squareExpansions"])
 @pytest.mark.parametrize("fusion_enabled", [False, True])
-def test_photo_wrapper_uses_renderer_marker_only_with_fusion_fallback(pool, fusion_enabled):
-    if pool == "photos":
-        entries = themes.registered_themes(pool, include_disabled=True)
-        assert entries
-        theme = copy.deepcopy(entries[0])
-    else:
-        assert not themes.registered_themes(pool, include_disabled=True)
-        theme = expansion_photo()
-        if pool == "subjectlessWidePhotos":
-            theme.update(pool=pool, composition="native", subjectless=True)
+def test_photo_wrapper_uses_renderer_marker_only_with_fusion_fallback(fusion_enabled):
+    entries = themes.registered_themes("photos", include_disabled=True)
+    assert entries
+    theme = copy.deepcopy(entries[0])
     theme["kind"] = "photo"
     source = layout_source()
     task = {**TASK, "appVersion": "99.0.0" if fusion_enabled else None}
-    if pool == "squareExpansions":
-        result = expand_square(source, theme, task)
-    else:
-        result = themes.apply_theme(source, theme, {**task, "size": theme.get("size")}, {})
+    result = themes.apply_theme(source, theme, {**task, "size": theme.get("size")}, {})
     marker = FOREGROUND_ID if fusion_enabled else "__post_theme_foreground"
     assert (FOREGROUND_ID in result) is fusion_enabled
     assert node_by_id(result, marker).get("component") == "Column"

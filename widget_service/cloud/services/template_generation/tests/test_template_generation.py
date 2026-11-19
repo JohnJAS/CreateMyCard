@@ -8965,10 +8965,9 @@ async def test_template_quality_failure_obeys_entry_fallback_policy(
 
 
 @pytest.mark.asyncio
-async def test_terse_edit_is_rejected_when_both_edit_routes_are_disabled(monkeypatch):
+async def test_terse_edit_is_rejected_when_semantic_edit_is_disabled(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_semantic_widget_edit", False)
-    monkeypatch.setattr(settings, "enable_single_step_widget_edit", False)
     request = _weather_request().model_copy(
         update={"sourceArtifactUrl": "https://artifact.test/source.md"}
     )
@@ -8992,8 +8991,8 @@ async def test_terse_edit_is_rejected_when_both_edit_routes_are_disabled(monkeyp
     monkeypatch.setattr(service, "generate_widget_card", original_generation)
     response = await service.generate_widget_card_terse_dsl_nested2(request)
 
-    assert response.status == GenerationStatus.FAILED
-    assert response.errorCode == "A2UI_GENERATION_FAILED"
+    assert response.status == GenerationStatus.UNSUPPORTED
+    assert response.errorCode == "WIDGET_EDIT_DISABLED"
     assert template_called is False
 
 

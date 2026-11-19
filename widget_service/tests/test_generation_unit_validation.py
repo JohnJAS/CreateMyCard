@@ -57,7 +57,6 @@ async def test_missing_unit_uses_quality_budget_before_theme(
     monkeypatch.setattr(settings, "enable_artifact_validation", full_validation)
     monkeypatch.setattr(settings, "enable_validation_failure_retry", True)
     monkeypatch.setattr(settings, "validation_failure_max_repair_attempts", 2)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     monkeypatch.setattr(
         WidgetGenerationService, "_enable_card_template", staticmethod(lambda: False)
     )

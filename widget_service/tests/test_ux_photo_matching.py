@@ -1,18 +1,14 @@
 """UX 图片不猜测真实宽高；无主体按布局匹配，有主体保守回退。"""
 
-import copy
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from config.config import get_settings
 from services import post_layout_theme as themes
 from services import post_layout_theme_registry as registry
-from services import square_photo_expansion, subjectless_wide_theme
 from services.theme_content_regions import button_ids, photo_layout_evidence
-from theme_photo_samples import expansion_photo
 
 SPORT_LAYOUT = '\n'.join([
     '["root","Layout",{"layout":"W-content-side-slots"},["main","upper","lower"]]',
@@ -74,20 +70,6 @@ def test_noninteractive_panels_remain_empty_but_clickable_cards_are_content():
     assert button_ids(nodes) == ["card", "button"]
 
 
-def test_expansion_geometry_diagnostics_check_all_supplied_samples():
-    before = evidence("2x2", [[.1, .1, .3, .2]])
-    before["responsive"] = [copy.deepcopy(before)]
-    after = copy.deepcopy(before)
-    for view in [before, *before.get("responsive", [])]:
-        view["visible"] = [{"id": "text", "text": "ok", "rect": [.1, .1, .3, .2]}]
-    for view in [after, *after.get("responsive", [])]:
-        view["occupied"] = [{"id": "0", "rect": [.05, .1, .15, .2]}]
-        view["visible"] = [{"id": "text", "text": "ok", "rect": [.05, .1, .15, .2]}]
-    assert square_photo_expansion.same_square_geometry(before, after)
-    after.get("responsive", [])[0].get("visible", [])[0]["rect"] = [.05, .2, .15, .2]
-    assert not square_photo_expansion.same_square_geometry(before, after)
-
-
 @pytest.mark.parametrize("photo", registry.registered_themes("photos"))
 def test_original_assets_are_present_and_fully_adaptive(photo):
     root = Path(__file__).resolve().parents[2]
@@ -104,27 +86,6 @@ def test_original_assets_are_present_and_fully_adaptive(photo):
             assert layer.get("styles") == {
                 "width": "matchParent", "height": "matchParent", "objectFit": "fill",
             }
-
-
-@pytest.mark.parametrize("module,pool,size,data", [
-    (square_photo_expansion, "squareExpansions", "2x2", "countdown"),
-    (subjectless_wide_theme, "subjectlessWidePhotos", "2x4", "phoneBattery"),
-])
-def test_retained_feature_gates_no_longer_sample(monkeypatch, module, pool, size, data):
-    settings = get_settings()
-    for flag in ("enable_photo_background_theme", "enable_square_photo_expansion",
-                 "enable_subjectless_wide_theme"):
-        monkeypatch.setattr(settings, flag, True)
-    photo = expansion_photo()
-    if size == "2x4":
-        photo.update(pool=pool, composition="subjectless", business="battery")
-    entries = [photo]
-    monkeypatch.setattr(module, "registered_themes", lambda _pool: entries)
-    gate = module.expansion_gate if size == "2x2" else module.wide_gate
-    for number in range(100):
-        task = {"size": size, "userQuery": f"显示倒计时{number}",
-                "dataModelSchema": {"data": {data: {"value": {"type": "integer"}}}}}
-        assert gate(task).get("eligible") is True
 
 
 def sleep_anchor_layout(button="CircleButton"):

@@ -32,7 +32,6 @@ FUSION_THEME_IDS = {
 def settings(monkeypatch):
     config = get_settings()
     monkeypatch.setattr(config, "enable_photo_background_theme", False)
-    monkeypatch.setattr(config, "enable_subjectless_wide_theme", False)
     return config
 
 

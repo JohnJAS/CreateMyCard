@@ -22,7 +22,7 @@ from services.card_validation.edit_validation.styles import (
     preserve_dynamic_styles,
     validate_edit_style_value,
 )
-from services.single_step_edit import _components, _load_json, _messages, _same, source_digest
+from services.widget_edit_utils import _components, _load_json, _messages, _same, source_digest
 
 EditDimension = Literal["palette", "typography", "spacing", "shape", "layout", "text"]
 _STYLE_GROUPS = {

@@ -348,7 +348,7 @@ def record_unmet_fusion_preference(audit: dict) -> None:
 
 
 async def select_theme(
-    source: str, task: dict, client: Any, *, allow_expansion: bool = False,
+    source: str, task: dict, client: Any, *,
     final_layout: str | None = None,
     business_context: BusinessContext | None = None,
 ) -> tuple[str, dict]:
@@ -383,7 +383,6 @@ async def select_theme(
     fallback = fallback_theme(family)
     fallback_id = fallback.get("id")
     rejected = {}
-    native_subjectless = get_settings().enable_subjectless_wide_theme and task.get("size") == "2x4"
     photo_facts = fusion_photo_facts(
         task, evidence, final_layout, business_context=final_business,
     )
@@ -391,27 +390,6 @@ async def select_theme(
     photos, photo_rejected = eligible_photos(photo_facts, registered_photos)
     candidates.extend(photos)
     rejected.update(photo_rejected)
-    wide_audit = None
-    if native_subjectless:
-        from services.subjectless_wide_theme import background_reason, wide_gate
-
-        wide_audit = wide_gate(task)
-        for photo in registered_themes("subjectlessWidePhotos"):
-            reason = background_reason(photo, task, evidence, wide_audit,
-                                       final_layout=final_layout)
-            if reason:
-                rejected[photo.get("id")] = reason
-            else:
-                candidates.append({**photo, "kind": "photo"})
-    if allow_expansion:
-        from services.square_photo_expansion import expansion_reason
-
-        for photo in registered_themes("squareExpansions"):
-            reason = expansion_reason(photo, task, evidence)
-            if reason:
-                rejected[photo.get("id")] = reason
-            else:
-                candidates.append(photo)
     layout_reason = photo_layout_exclusion_reason(task, evidence, final_layout)
     if layout_reason:
         retained = []
@@ -449,7 +427,6 @@ async def select_theme(
             if candidate.get("id") not in fusion_gate.get("allowedTokens", []):
                 conditional_fusions.append(candidate)
     fusion_gate["conditionalFusionTokens"] = [item.get("id") for item in conditional_fusions]
-    expansions = [item.get("id") for item in candidates if item.get("composition") == "square-left"]
     prompt = [
         {
             "role": "system",
@@ -472,7 +449,6 @@ async def select_theme(
                                                 for item in conditional_fusions],
                     "eligiblePhotos": [item.get("id") for item in candidates
                                        if item.get("kind") == "photo"],
-                    "preferredExpansions": expansions,
                     "defaultPalette": family,
                 },
                 ensure_ascii=False,
@@ -538,12 +514,7 @@ async def select_theme(
     selected, photo_selection = select_equivalent_photo(selected, candidates)
     theme = allowed.get(selected)
     try:
-        if theme.get("composition") == "square-left":
-            from services.square_photo_expansion import expand_square
-
-            result = expand_square(source, theme, task)
-        else:
-            result = apply_theme(source, theme, task, overrides)
+        result = apply_theme(source, theme, task, overrides)
     except ValueError as exc:
         logger.warning(
             f"[Theme] application_failed theme_id={selected} "
@@ -576,7 +547,6 @@ async def select_theme(
         "layoutEvidence": evidence,
         "photoAssetExclusions": asset_exclusions,
         "deviceGeometryKnown": False,
-        "subjectlessWideGate": wide_audit,
         "fusionEligibility": fusion_gate,
         "businessSummary": final_business.payload(),
         "defaultPalette": family,
@@ -597,35 +567,8 @@ async def select_theme(
         "sourceSize": task.get("size"),
         "outputSize": theme.get("size", task.get("size")),
     }
-    if allow_expansion:
-        from services.square_photo_expansion import expansion_gate
-
-        audit["expansionGate"] = expansion_gate(task)
     record_unmet_fusion_preference(audit)
     return result, audit
-
-
-def same_visible_geometry(before: dict, after: dict) -> bool:
-    if not before.get("complete") or not after.get("complete"):
-        return False
-    first_views, second_views = before.get("responsive", []), after.get("responsive", [])
-    if len(first_views) != len(second_views):
-        return False
-    for first_view, second_view in zip(first_views, second_views, strict=True):
-        if not same_visible_geometry(first_view, second_view):
-            return False
-    left, right = before.get("visible", []), after.get("visible", [])
-    if len(left) != len(right):
-        return False
-    for a, b in zip(left, right, strict=True):
-        if a.get("id") != b.get("id") or a.get("text") != b.get("text"):
-            return False
-        first, second = a.get("rect"), b.get("rect")
-        if not valid_rect(first) or not valid_rect(second):
-            return False
-        if any(abs(x - y) > 0.001 for x, y in zip(first, second, strict=True)):
-            return False
-    return True
 
 
 def _validate_theme(artifact: Any, validator: Any, profile: dict, *, fallback: bool) -> list[str]:
@@ -643,14 +586,13 @@ def _validate_theme(artifact: Any, validator: Any, profile: dict, *, fallback: b
 @trace_operation("theme", kind="group")
 async def theme_artifact(
     artifact: Any, task: dict, client: Any, validator: Any, profile: dict,
-    *, allow_expansion: bool = True, final_layout: str | None = None,
+    *, final_layout: str | None = None,
     business_context: BusinessContext | None = None,
 ) -> Any:
     source = artifact.genui
     with trace_span("theme.selection", stage="theme.selection") as span:
         result, audit = await select_theme(
             source, task, client,
-            allow_expansion=allow_expansion and artifact.meta.generationMode == "create",
             final_layout=final_layout,
             business_context=business_context,
         )
@@ -661,10 +603,6 @@ async def theme_artifact(
     themed = artifact.model_copy(deep=True)
     themed.genui = result
     theme = audit.get("theme", {})
-    expanded = theme.get("composition") == "square-left"
-    if expanded:
-        themed.cardSpec["suggestSize"] = "2x4"
-        themed.taskSpec["size"] = "2x4"
     if theme.get("kind") == "photo":
         themed.genui = deliver_photo_source(themed.genui, theme)
         themed = register_photo_asset(themed)

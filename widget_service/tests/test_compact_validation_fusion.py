@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from config.config import get_settings
 from services.card_validation import CompactDslValidationError, validate_compact_dsl
 from services.card_validation.compact_validation import api
 from services.card_validation.compact_validation.context import ComponentRows, ValidationContext
@@ -421,21 +420,16 @@ def test_duplicate_plan_fact_context_reaches_repair_issue(
     assert "不能清空属性" in feedback[0].get("ownershipInstruction", "")
 
 
-@pytest.mark.parametrize("runtime_context", [False, True])
-def test_repair_keeps_history_recovery_and_internal_record(
-    monkeypatch: pytest.MonkeyPatch, runtime_context: bool,
+def test_repair_keeps_history_and_internal_record(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        get_settings(), "enable_design_compact_runtime_prompt_context", runtime_context,
-    )
     error = _errors(TALL)
     issues = DesignCompactProcessor._validation_failure(TALL, error.errors, groups=error.groups)
     quality_errors = [item.to_prompt_payload() for item in issues.errors]
     history = [[{"stage": "validation", "code": "old", "message": "Occupancy: old"}]]
-    recovery = {"variants": ["full alternative"], "ordinaryFactPacking": ["all facts"]}
     initial = [
         {"role": "system", "content": "system"},
-        {"role": "user", "content": json.dumps({"compositionRecovery": recovery})},
+        {"role": "user", "content": json.dumps({"userQuery": "显示会议"})},
         {"role": "user", "content": json.dumps({"qualityErrors": history[0]})},
     ]
     before = deepcopy(quality_errors)
@@ -451,10 +445,7 @@ def test_repair_keeps_history_recovery_and_internal_record(
     payload = json.loads(content)
     assert prompt[:len(initial)] == initial
     assert "previousFailures" not in payload
-    if runtime_context:
-        assert payload.get("compositionRecovery") == recovery
-    else:
-        assert "compositionRecovery" not in payload
+    assert "compositionRecovery" not in payload
     assert "originalUserContent" not in payload
     assert "invalidSourceDsl" not in payload
     assert {"role": "assistant", "content": TALL} in prompt
@@ -471,4 +462,4 @@ def test_only_fusion_repair_prompt_source_exists() -> None:
     )
     assert "expanded 位置来自模板展开，不是模型 Props" in repair
     assert "previousFailures" in repair
-    assert "compositionRecovery" in repair
+    assert "compositionRecovery" not in repair

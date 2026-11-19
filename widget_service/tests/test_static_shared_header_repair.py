@@ -325,7 +325,6 @@ async def test_service_repairs_prepared_source_with_matching_capacity_and_keeps_
     monkeypatch.setattr(settings, "validation_failure_max_repair_attempts", 5)
     monkeypatch.setattr(settings, "enable_model_failure_retry", False)
     monkeypatch.setattr(settings, "enable_artifact_validation", True)
-    monkeypatch.setattr(settings, "enable_design_compact_runtime_prompt_context", False)
     model_calls = []
     repairs = []
     saved = []
