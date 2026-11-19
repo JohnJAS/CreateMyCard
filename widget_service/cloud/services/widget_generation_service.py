@@ -123,7 +123,7 @@ from services.template_generation import TemplateSourceGenerator
 from services.validator import ArtifactValidator
 from services.widget_edit_protocol.resources import MODEL_FORMAT as SINGLE_STEP_MODEL_FORMAT
 from services.widget_edit_protocol.resources import UPSTREAM_COMMIT as SINGLE_STEP_UPSTREAM_COMMIT
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 _MODULE = "[Generation Service]"
 

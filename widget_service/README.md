@@ -107,7 +107,7 @@ The service follows `docs/AGENTS.md`:
   The three generation WebSocket handlers directly await the async generation service; heartbeat send failure does
   not cancel generation, repair, or artifact persistence.
 - Package filtering emits exactly one summary result per capability-overview request; per-capability dependency-check logs are not emitted.
-- OBS upload is intentionally left as a TODO hook in `ArtifactStore`; remote source artifact reads reuse `utils/download_file_from_url.py`.
+- OBS upload is intentionally left as a TODO hook in `ArtifactStore`; remote source artifact reads reuse `utils/card_common/download_file_from_url.py`.
 
 ## Run
 

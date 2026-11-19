@@ -42,7 +42,7 @@ from services.generation_content_policy import (
 )
 from services.generation_trace_recorder import TraceSpan, trace_operation, trace_record, trace_step
 from services.protocol_registry import A2UIProtocolRegistry
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 IssueStage = Literal["conversion", "validation"]
 IssueSeverity = Literal["error", "warning"]

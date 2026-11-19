@@ -30,7 +30,7 @@ from services.source_artifact_repository import (
     SourceArtifactRepository,
 )
 from services.widget_generation_service import WidgetGenerationService
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 from ws_response_parser import parse_legacy_stream_content
 
 app = importlib.import_module("start_websocket_server").app

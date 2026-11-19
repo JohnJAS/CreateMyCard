@@ -17,7 +17,7 @@ from models.artifact import WidgetArtifact
 from services.asset_url_mapper import AssetUrlMapper
 from services.capability_registry import CapabilityRegistry
 from services.post_layout_theme_registry import registered_themes
-from utils.download_file_from_url import (
+from utils.card_common.download_file_from_url import (
     DownloadFileError,
     DownloadFileNotFoundError,
     DownloadFileTooLargeError,

@@ -16,7 +16,7 @@ from config.config import Settings
 from custom.model_transport import ModelTransportError
 from models.generation import ModelRequestContext
 from services.generation_trace_recorder import trace_record
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 
 @dataclass(frozen=True)

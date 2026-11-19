@@ -72,7 +72,7 @@ from services.widget_directive import (
     build_widget_directive_response,
 )
 from services.widget_generation_service import WidgetGenerationService
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 _MODULE = "[WS Router]"
 

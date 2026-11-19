@@ -127,10 +127,10 @@ from services.retry_controller import RetryController
 from services.task_spec_builder import TaskSpecBuilder
 from services.validator import ArtifactValidator
 from services.widget_generation_service import WidgetGenerationService
-from utils.base_utils import sts_config
-from utils.download_file_from_url import download_file
-from utils.file import delete_file, save_txt_file
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import sts_config
+from utils.card_common.download_file_from_url import download_file
+from utils.card_common.file import delete_file, save_txt_file
+from utils.card_runtime import UploadFileOSMS
 
 
 def test_websocket_handler_runs_sync_service_in_threadpool():
@@ -4847,8 +4847,8 @@ def test_shared_download_file_uses_remote_http_options(tmp_path, monkeypatch):
         ]
 
     # HTTP 与 DNS 都使用确定性替身，仍执行真实的公网地址安全判定。
-    monkeypatch.setattr("utils.url_guard.socket.getaddrinfo", fake_getaddrinfo)
-    monkeypatch.setattr("utils.download_file_from_url.requests.get", fake_get)
+    monkeypatch.setattr("utils.card_common.url_guard.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("utils.card_common.download_file_from_url.requests.get", fake_get)
     target_path = tmp_path / "artifact.md"
 
     downloaded_path = asyncio.run(

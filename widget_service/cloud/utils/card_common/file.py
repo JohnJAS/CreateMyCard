@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
-import os
-import aiohttp
-import pathlib
-import shutil
 import json
+import os
+import pathlib
 import re
+import shutil
+
+import aiohttp
 
 from app.logger import logger, task_logger
 
@@ -92,7 +93,7 @@ def copy_file(src_path: str, dst_path: str):
 def read_txt_file(path) -> str:
     if not contain_file(path):
         raise FileNotFoundError("path not found")
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         return f.read()
 
 
@@ -101,14 +102,14 @@ def read_json_file(path):
     读取json文件
     """
     try:
-        with open(path, 'r', encoding='utf-8') as file:
+        with open(path, encoding='utf-8') as file:
             data = json.load(file)
             return data
     except FileNotFoundError:
-        logger.error(f"错误：文件 不存在")
+        logger.error("错误：文件 不存在")
         return None
     except json.JSONDecodeError:
-        logger.error(f"错误：文件不是有效的JSON格式")
+        logger.error("错误：文件不是有效的JSON格式")
         return None
     except Exception as e:
         logger.error(f"读取文件时发生错误：{type(e.__class__)}")
@@ -127,7 +128,10 @@ def task_id_seq_auto_increment(task_id):
     try:
         num = int(num_part)
     except ValueError:
-        logger.error(f"Invalid number format in task_id: '{task_id}' - trailing part '{num_part}' is not a number")
+        logger.error(
+            f"Invalid number format in task_id: '{task_id}'"
+            f" - trailing part '{num_part}' is not a number"
+        )
 
     task_logger.set_task_id(f"{task_id[:last_underscore_index]}_{num + 1}")
 
@@ -217,7 +221,7 @@ def read_md_file(file_path):
     读取 Markdown 文件，返回字符串内容
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
         return content
     except FileNotFoundError:

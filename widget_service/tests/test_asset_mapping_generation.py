@@ -16,7 +16,7 @@ from services.template_generation import TemplateSourceGenerator
 from services.validator import ArtifactValidator
 from services.widget_generation_service import WidgetGenerationService
 from test_asset_url_mapper import SRC, URL, components
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 
 # 本组验证既有创建、回退或路由合同，静态策略由专项测试覆盖。
 pytestmark = pytest.mark.usefixtures("existing_generation_policy")

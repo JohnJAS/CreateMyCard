@@ -11,7 +11,7 @@ from typing import Protocol
 from app.logger import json_for_log, logger
 from config.config import get_settings
 from core.errors import ErrorCode
-from utils.ops_metrics import report_ops_metrics
+from utils.card_runtime import report_ops_metrics
 
 _BEIJING = timezone(timedelta(hours=8))
 

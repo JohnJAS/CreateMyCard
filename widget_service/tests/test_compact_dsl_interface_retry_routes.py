@@ -22,7 +22,7 @@ from test_tool_dispatch_routes import (
     _valid_model_output,
     app,
 )
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 from ws_response_parser import parse_legacy_stream_content
 
 _OPERATION = "generateWidgetCardCompactDsl"

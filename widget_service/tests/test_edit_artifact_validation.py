@@ -16,7 +16,7 @@ from services.generation_pipeline import DslProcessingResult
 from services.single_step_edit import source_digest
 from services.source_artifact_repository import SourceArtifactRepository
 from services.widget_generation_service import WidgetGenerationService
-from utils.upload_file_obs import UploadFileOSMS
+from utils.card_runtime import UploadFileOSMS
 
 OLD_ROOT = "/data/weather"
 OLD_REFERENCE = "{{ ${/data/weather/current/condition} }}"

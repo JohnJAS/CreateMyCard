@@ -1274,7 +1274,7 @@ Replace this method with the team's OBS uploader.
 cloud/services/source_artifact_repository.py
 ```
 
-用途：在 edit 模式下读取 `widget-artifact-v2` 并解析具名代码块。repository 不校验 URL 的协议、host、端口、query、fragment 或对象前缀；`enable_artifact_download_mock=true` 时从 URL path 提取文件名并只读取本地 mock OBS，默认为该模式且缺文件不回退网络；关闭后将原始 URL 交给 `utils/download_file_from_url.py` 的公共 `download_file` 方法。两种模式仍限制文件大小和超时，远程模式不跟随重定向，也不记录完整 URL。
+用途：在 edit 模式下读取 `widget-artifact-v2` 并解析具名代码块。repository 不校验 URL 的协议、host、端口、query、fragment 或对象前缀；`enable_artifact_download_mock=true` 时从 URL path 提取文件名并只读取本地 mock OBS，默认为该模式且缺文件不回退网络；关闭后将原始 URL 交给 `utils/card_common/download_file_from_url.py` 的公共 `download_file` 方法。两种模式仍限制文件大小和超时，远程模式不跟随重定向，也不记录完整 URL。
 
 ### 9.3 ResponsePlanner.plan
 

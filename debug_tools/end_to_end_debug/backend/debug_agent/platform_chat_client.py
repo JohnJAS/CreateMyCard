@@ -17,7 +17,7 @@ import websockets
 from config.config import Settings
 from custom.official_http_client import request_official_http
 from models.generation import ModelRequestContext
-from utils.base_utils import sts_config
+from utils.card_runtime import sts_config
 
 _MODULE = "[JSX Platform Model]"
 _DEFAULT_HEADERS = {"sender": "GenUI"}

@@ -13,7 +13,7 @@ import httpx
 from app.logger import logger, task_logger
 from config.config import Settings
 from services.daily_usage_limiter import DailyUsageLimiter, DailyUsageRecord, DailyUsageSnapshot
-from utils.base_utils import sts_config
+from utils.card_runtime import sts_config
 
 OSMS_SECRET_CONFIG_KEY = "hag.osms.sk"
 

@@ -24,7 +24,7 @@ from models.service import (
 )
 from services.ids_response_logging import ids_response_diagnostic
 from services.json_loader import load_json
-from utils.base_utils import sts_config
+from utils.card_runtime import sts_config
 
 _MODULE = "[IDS Client]"
 
